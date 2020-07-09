@@ -1,0 +1,612 @@
+.\" Man page generated from reStructuredText.
+.
+.TH GENERAL  "" "" ""
+.SH NAME
+General \- 
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.\" ---------------------------------
+.
+.\" << Global Variables >>>
+.
+.\" ---------------------------------
+.
+.\" ******************************************************************
+.
+.\" You will use this variable like this in a sentance for|ORG|.
+.
+.\" You can add your own global variables in this file.
+.
+.\" << EXAMPLES >>
+.
+.\" .. |SUMA| replace:: qalsusap002.qa2-sap.grainger.com
+.
+.\" .. |SUMA_URL| replace:: http://qalsusap002.qa2-sap.grainger.com
+.
+.\" .. |SUMA_PROXY_URL| replace:: http://prlsusap002.prod-sap.grainger.com
+.
+.\" .. |SUMA_PROXY| replace:: prlsusap002.prod-sap.grainger.com
+.
+.\" ******************************************************************
+.
+.\" *******************************************
+.
+.\" This title-> SUSE Consulting Scripts
+.
+.\" This file -> pages/suse_consulting_scripts/index.rst
+.
+.\" You can insert the organization's name from
+.
+.\" globals.rst by using the syntax |ORG| in a
+.
+.\" sentance.
+.
+.\" Start content after HERE.
+.
+.\" *******************************************
+.
+.sp
+SUSE Consulting has written several (python) scripts that can be used for daily work. The scripts can be download from GitHub under the following \fI\%link\fP\&. Under the button \fBClone or Download\fP all scripts can be downloaded. Please copy the zip\-file to \fB/opt/susemanager\fP on the SUSE Manager server and extract. Following is a description of each script.
+.sp
+\fBNote:\fP These tools are only supported by SUSE Consulting. For bugs and questions please contact SUSE Consulting and \fBnot\fP SUSE Support!!!!!!!!
+.SH CONFIGSM.YAML
+.sp
+This is the general configuration file. All scripts read information from this file. There are several sections in this file.
+.sp
+The first section is defining the SUSE Manager Server and the needed login credentials. Also the timeout how long an action can take before the script is stopped with a timeout error. The default is 600 seconds.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+suman:
+    server: <SUSE Manager Server FQDN>
+    user: <user within SUSE Manager to perform the actions>
+    password: <password from the user>
+    timeout: 600
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Each script can send a mail when there is a warning or a failure that causes the script to stop. If the option \fBsendmail\fP is true, a mail should be send for minor and major errors. False if no mail should be send. The mail will be send to the receivers listed at the option \fBreceivers\fP\&. The option \fBsender\fP indentifies from whom the mail is send. And the option \fBserver\fP sets the mail relay host. Often this can be the server itself.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+smtp:
+    sendmail: True
+    receivers:
+        \- <receiver 1>
+        \- <receiver 2>
+    sender: <sender identification>
+    server: 127.0.0.1
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+Every script will log information in log files. With the option \fBlog_dir\fP the directory can be defined where the logs should reside. By default this is \fB/var/log\fP\&. It is advised to write the logs in a separate directory. Every script will write information into log files. The script \fBsystem_update.py\fP will create a sub\-directory and create a separate log file for every system. The option \fBscripts_dir\fP defines the directory where the scripts are. By default this is \fB/opt/susemanager\fP\&. The option \fBupdate_script_dir\fP defines the location where the update scripts can be found that are used during maintenance.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+dirs:
+    log_dir: /var/log
+    scripts_dir: /opt/susemanager
+    update_script_dir: /opt/susemanager/update_scripts
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBmaintenance\fP section is being used by the scripts \fBsystem_update.py\fP and \fBgroup_system_update.py\fP\&. The option \fBwait_between_systems\fP defines the time between each system when running \fBgroup_system_update.py\fP\&. The default is 5 seconds. Systems defined at the option \fBexclude_for_patch\fP will not be updated. In this example server \fBlx0001\fP will not be updated. Under the option \fBsp_migration\fP it can be defined to which SupportPack can be updated. The same for \fBsp_migration_project\fP but her define from which project to upgrade to which project. If none are defined, no SP\-Migration will take place. If there is something defined, the OS defined will be updated to the parameter given. In the example given a SLES12 SP2 server will be update to SLES12 SP4. Exceptions can be defined. In the give example the server \fBlx0003\fP will not get a SP\-migration.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+maintenance:
+    wait_between_systems: 5
+    exclude_for_patch:
+        \- lx0001
+    sp_migration:
+        sles12\-sp2: sles12\-sp4
+    sp_migration_project:
+        s123: s125
+        s124: s125
+    exception_sp:
+        sles12\-sp4:
+            \- lx0003
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The \fBloglevel\fP section describes the various levels of logging. The are two separate logs. One will be displayed on the screen and on will be written to a file.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+loglevel:
+    # LOGLEVELS:
+    # DEBUG: info warning error debug
+    # INFO: info warning error
+    # WARNING: warning error
+    # ERROR: error
+    screen: INFO
+    file: DEBUG
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The section \fBerror_handling\fP describes the behavior for the main parts \fBsystem_update.py\fP\&.  The given values in the example are the defaults. Please change accordingly.
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+error_handling:
+    # fatal: report error, exit script
+    # error: report error, continue
+    # warning: report warning, continue
+    script: error
+    update: error
+    spmig: fatal
+    configupdate: error
+    reboot: fatal
+    timeout_passed: fatal
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH CREATE_REPOS.PY
+.sp
+From a pre\-defined yaml channels will be created in the give parent channels. This also includes the creation of the repositories and sync schedule. Also the initial synchronization can be started. In the directory \fBrepo\-yaml\fP there are some examples for the various rhel versions.
+.SH PARAMETERS CREATE_REPOS.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-r <yaml>
+T}	T{
+file containing the repositories to be created
+T}
+_
+T{
+\-s
+T}	T{
+Synchronize channel after creation. Default off
+T}
+_
+.TE
+.SH CREATE_SOFTWARE_PROJECT.PY
+.sp
+This script can be used for three scenarios
+.INDENT 0.0
+.IP \(bu 2
+to create a content lifecycle project. For this the following options are mandatory: \fB\-p, \-e, \-b\fP\&. The following options are optional: \fB\-a \-d\fP\&.
+.INDENT 2.0
+.INDENT 3.5
+The following is an example to create a new project:
+.sp
+\fB<path to script>/create_software_project.py \-p sles12sp4 \-e dev,tst,prd \-b sles12\-sp4\-pool\-x86_64 \-a customchannel1,customchannel2\fP
+.UNINDENT
+.UNINDENT
+.IP \(bu 2
+to add channels to an existing project:
+.INDENT 2.0
+.INDENT 3.5
+The following is an example to add a channel to an existing project:
+.sp
+\fB<path to script>/create_software_project.py \-p sles12sp4 \-a customchannel1,customchannel2\fP
+.UNINDENT
+.UNINDENT
+.IP \(bu 2
+to delete channels to an existing project:
+.INDENT 2.0
+.INDENT 3.5
+The following is an example to add a channel to an existing project:
+.sp
+\fB<path to script>/create_software_project.py \-p sles12sp4 \-d customchannel1,customchannel2\fP
+.UNINDENT
+.UNINDENT
+.UNINDENT
+.sp
+The cloned channels will only be created, the synchronization has to be started manually with the script \fBsync_stage.py\fP\&.
+.sp
+The script has the following parameters:
+.SH PARAMETERS CREATE_SOFTWARE_PROJECT.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-p <project>
+T}	T{
+The name of the project. This is mandatory
+T}
+_
+T{
+\-e <environment>
+T}	T{
+A comma\-delimited list (without spaces) of the environments to be created. Eg \fB\-e dev,tst,prd\fP\&. This is mandatory
+T}
+_
+T{
+\-b <basechannel>
+T}	T{
+The basechannel label of which the channel should be created. Eg \fB\-b sles12\-sp4\-pool\-x86_64\fP\&. This is mandatory
+T}
+_
+T{
+\-a <add channels>
+T}	T{
+A comma\-delimited list (without spaces) of channels that should be added to the given project.
+T}
+_
+T{
+\-d <delete channels>
+T}	T{
+A comma\-delimited list (without spaces) of channels that should be removed from the given project.
+T}
+_
+T{
+\-m <descriptopn>
+T}	T{
+Description of the project. Is optional.
+T}
+_
+.TE
+.SH GROUP_SYSTEM_UPDATE.PY
+.sp
+This script will update via the script \fBsystem_update.py\fP all systems in the given system group.
+.sp
+The script has the following parameters:
+.SH PARAMETERS GROUP_SYSTEM_UPDATE.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-g <system group>
+T}	T{
+The name of the system group of which the systems should be updates. This is mandatory
+T}
+_
+T{
+\-c
+T}	T{
+If this paramater is given, the configuration of the system will also be updated.
+T}
+_
+T{
+\-u
+T}	T{
+If this paramater is given, the update scripts of the system will also be excuted.
+T}
+_
+.TE
+.SH SMTOOLS.PY
+.sp
+This script is not executable. It is a library used within all other scripts.
+.SH SYNC_CHANNEL.PY
+.sp
+This script will update the given channel from the channel it has been cloned from.
+.sp
+The script has the following parameters:
+.SH PARAMETERS SYNC_CHANNEL.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-g <channel label>
+T}	T{
+The label of the channel that should be updated. This is mandatory
+T}
+_
+.TE
+.SH SYNC_ENVIRONMENT.PY
+.sp
+This script will update the given environment in all projects. This is useful when there are multiple projects with the same environments and a specific environment has to be updated for all projects where the environment is present.
+.sp
+The script has the following parameters:
+.SH PARAMETERS SYNC_ENVIRONMENT.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-e <environment>
+T}	T{
+The name of the environment that should be updated. This is mandatory
+T}
+_
+.TE
+.SH SYNC_STAGE.PY
+.sp
+With this script there are two options:
+.INDENT 0.0
+.IP \(bu 2
+update a given base channel. For this use the option \fB\-c\fP\&.
+.IP \(bu 2
+update the given environment for the given project. For this the options \fB\-p, \-e and \-m\fP are being used.
+.UNINDENT
+.sp
+The script has the following parameters:
+.SH PARAMETERS SYNC_STAGE.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-p <project>
+T}	T{
+The name of the project.
+T}
+_
+T{
+\-e <environment>
+T}	T{
+The name of the environments to be updated.
+T}
+_
+T{
+\-m <descriptopn>
+T}	T{
+Description of the project. This is optional and when not given a default message will be used: \fBCreated on <date>\fP\&.
+T}
+_
+T{
+\-c <basechannel>
+T}	T{
+The basechannel label of which the channels should be updated.
+T}
+_
+T{
+\-b
+T}	T{
+This will create a backup of the basechannel and all the child channels. The current date will be in the new labels. Optional
+T}
+_
+.TE
+.SH SYSTEM_REREG.PY
+.sp
+This script will re\-register a system to a SUSE Manager Proxy Server.
+.sp
+The script has the following parameters:
+.SH PARAMETERS SYSTEM_REREG.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-s <server>
+T}	T{
+The name of the server. This has to be equal to the profile name in SUSE Manager.
+T}
+_
+T{
+\-p <SUSE Manager Proxy Server>
+T}	T{
+The name of the SUSE Manager Proxy server. This has to be equal to the profile name in SUSE Manager.
+T}
+_
+T{
+\-f <file>
+T}	T{
+file with list of servers to be re\-registered. There should be 1 server per line
+T}
+_
+.TE
+.SH SYSTEM_UPDATE.PY
+.sp
+This script will perform several actions while updating a server. If the server is inactive, the script will stop immediately. First it will check if the given server is mentioned in the \fBconfigsm.yaml\fP in the under \fBmaintenance.exclude_for_patch\fP\&. If this is the case the script will stop and the system will be updated. If this is not the case, it will check if there is a SupportPack migration defined for the running OS on this system. If this is the case and the system is not in the list of exclude systems (\fBmaintenance.exception_sp\fP), the server will be migrated to the given SupportPack. But first it will be updated. If there is no Support Pack migration available or the system is excluded, it will receive a regular update. The update will be done in four steps. First the \fBsalt\-minion\fP will be updated. In the second step the update stack (\fBzypper\fP and \fBzypplib\fP) will be updated. When this is completed all available patches will be applied and the in the last step packages that are not part of a patch will be updated. When the option \fB\-c\fP is given, the system will get a salt highstate before and after the packages are installed. Also the system will be rebooted, unless the option \fB\-n\fP is given.
+.sp
+Also there is the option to execute scripts or state channels before and after the update. This is defined with the option \fB\-u\fP\&. When this option is being set, the script will check the directory defined with the option \fBupdate_script_dir\fP in the \fBconfigsm.yaml\fP if there is a file called \fBgeneral\fP and a file with the same name of the server (as defined in SUSE Manager). It will combine these two and execute when needed.
+.sp
+The script has the following parameters:
+.SH PARAMETERS SYSTEM_UPDATE.PY
+.TS
+center;
+|l|l|.
+_
+T{
+\fBParameter\fP
+T}	T{
+\fBDescription\fP
+T}
+_
+T{
+\-h
+T}	T{
+Display all available parameters
+T}
+_
+T{
+\-s <server>
+T}	T{
+The name of the server. This has to be equal to the profile name in SUSE Manager.
+T}
+_
+T{
+\-n
+T}	T{
+The server will not be rebooted after the patching is completed.
+T}
+_
+T{
+\-c
+T}	T{
+Apply configuration after and before patching.
+T}
+_
+T{
+\-u
+T}	T{
+Execute the server specific _start and _end scripts or configuration state channels, or what is defined in general
+T}
+_
+.TE
+.SH <UPDATE_SCRIPT_DIR>/GENERAL AND SERVER SPECIFIC
+.sp
+The files have the same format and should look like:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+begin:
+    timeout: 60
+    commands:
+    state:
+end:
+    timeout: 60
+    commands:
+    state:
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+The block under \fBbegin\fP will be executed before the server will be patched or will get a SP\-migration. The block under \fBend\fP will be executed after the server is rebooted. The \fBtimeout\fP is the time the executing of a script may run. If the time is exceeded, the job will be reported as failed. So ensure that the timeout is high enough. Under \fBcommands\fP list the commands to be executed. This should be preceded with a \-. Under \fBstate\fP define the state channels that should be executed. This should be preceded with a \-.
+.sp
+An example:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+begin:
+    timeout: 60
+    commands:
+     \- cd /tmp; rm \-rf *
+    state:
+     \- sap_hana_stop
+end:
+    timeout: 60
+    commands:
+     \- /opt/something/something.sh
+    state:
+     \- sap_hana_start
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.\" Generated by docutils manpage writer.
+.

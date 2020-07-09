@@ -1,0 +1,16 @@
+begin:
+  timeout: 60
+  commands:
+   - echo $(date) > /root/general-begin
+  state:
+   - general_begin
+   - blablable
+
+end:
+  timeout: 60 
+  commands:
+   - echo $(date) > /root/general-end
+  state:
+   - general_end
+
+

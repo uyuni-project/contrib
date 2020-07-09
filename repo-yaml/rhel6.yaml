@@ -1,0 +1,27 @@
+repository:
+  epel6-server-rpms:
+    parent: rhel6-pool-x86_64
+    type: yum
+    url: http://ftp.hosteurope.de/mirror/fedora-epel/6Server/x86_64/
+    key:
+    cert:
+    ca:
+    schedule: 0 5 20 ? * *
+
+  rhel6-rhscl-1-rpms:
+    parent: rhel6-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/6/6Server/x86_64/rhscl/1/os/   
+    key: entitlement-cert+key       
+    cert: entitlement-cert+key   
+    ca: redhat-uep
+    schedule: 0 10 20 ? * *
+
+  rhel6-updates-rpms:
+    parent: rhel6-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/6/6Server/x86_64/os   
+    key: entitlement-cert+key
+    cert: entitlement-cert+key
+    ca: redhat-uep
+    schedule: 0 15 20 ? * *

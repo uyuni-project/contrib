@@ -1,0 +1,16 @@
+begin:
+  timeout: 60
+  commands:
+   - echo $(date) > /root/server-begin
+  state:
+   - server_begin
+   - blablable
+
+end:
+  timeout: 60 
+  commands:
+   - echo $(date) > /root/server-end
+  state:
+   - server_end
+
+

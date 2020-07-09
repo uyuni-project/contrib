@@ -1,0 +1,28 @@
+repository:
+  rhel8-supplementary-rpms:
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/supplementary/os
+    key: entitlement-cert
+    cert: entitlement-cert
+    ca: redhat-uep
+    parent: rhel8-pool-x86_64
+    schedule: 0 5 20 ? * *
+
+  rhel8-baseos-rpms:
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/baseos/os   
+    key: entitlement-cert       
+    cert: entitlement-cert   
+    ca: redhat-uep
+    parent: rhel8-pool-x86_64
+    schedule: 0 5 20 ? * *
+
+  rhel8-appstream-rpms:
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel8/8/x86_64/appstream/os
+    key: entitlement-cert
+    cert: entitlement-cert
+    ca: redhat-uep
+    parent: rhel8-pool-x86_64
+    schedule: 0 5 20 ? * *
+

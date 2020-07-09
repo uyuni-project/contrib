@@ -1,0 +1,117 @@
+repository:
+  epel7-server-rpms:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: http://ftp.hosteurope.de/mirror/fedora-epel/7Server/x86_64/
+    key:
+    cert:
+    ca:
+    schedule: 0 5 20 ? * *
+
+  rhel7-rhscl-1-rpms:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/rhscl/1/os/
+    key: redhat-clientcert+key
+    cert: redhat-clientcert+key
+    ca: redhat-uep
+    schedule: 0 5 20 ? * *
+
+  rhel7-server-extras-rpms:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/extras/os   
+    key: entitlement-cert+key   
+    cert: entitlement-cert+key   
+    ca: redhat-uep
+    schedule: 0 5 20 ? * *
+
+  rhel7-updates-rpm:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/os/
+    key: redhat-clientcert+key
+    cert: redhat-clientcert+key
+    ca: redhat-uep
+    schedule: 0 5 20 ? * *
+
+  rhel7-optional:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/optional/os
+    key: redhat-clientcert+key
+    cert: redhat-clientcert+key
+    ca: redhat-uep
+    schedule: 0 5 20 ? * *
+
+  rhel7-iso:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: file:///opt/data/rhel-iso-content/7
+    key:
+    cert:
+    ca:
+    schedule: 0 5 20 ? * *
+
+  rhel7-percona-x86_64:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: http://repo.percona.com/percona/yum/release/7/RPMS/x86_64/
+    key:
+    cert:
+    ca:
+    schedule: 0 5 20 ? * *
+
+  rhel7-percona-noarch:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: http://repo.percona.com/percona/yum/release/7/RPMS/noarch/
+    key:
+    cert:
+    ca:
+    schedule: 0 5 20 ? * *
+
+  rhel7-rh-gluster-3-for-rhel-7-server-rpms:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/rhgs-server/3.1/os
+    key: entitlement-key-gluster
+    cert: entitlement-cert-gluster
+    ca: redhat-uep
+    schedule: 0 5 20 ? * *
+
+  rhel7-server-ose-3.11-rpms:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/ose/3.11/os
+    key: redhat-clientcert+key
+    cert: redhat-clientcert+key
+    ca: redhat-uep
+    schedule: 0 5 20 ? * *
+
+  rhel7-server-ansible-2.6-rpms:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://cdn.redhat.com/content/dist/rhel/server/7/7Server/x86_64/ansible/2.6/os   
+    key: entitlement-cert+key
+    cert: entitlement-cert+key
+    ca: redhat-uep
+    schedule: 0 5 20 ? * *
+
+  rhel7-gitlab_gitlab-ce:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://packages.gitlab.com/gitlab/gitlab-ce/el/7/x86_64
+    key:
+    cert:
+    ca:
+    schedule: 0 5 20 ? * *
+
+  rhel7-gitlab_gitlab-ce-source:
+    parent: rhel7-pool-x86_64
+    type: yum
+    url: https://packages.gitlab.com/gitlab/gitlab-ce/el/7/SRPMS
+    key:
+    cert:
+    ca:
+    schedule: 0 5 20 ? * *
