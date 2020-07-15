@@ -87,6 +87,7 @@ def do_upgrade(no_reboot, force_reboot):
         for patch in updateble_patches:
             patches.append(patch.get('id'))
         smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "Errata update")
+        smt.system_schedulepackagerefresh(datetime.datetime.now())
         reboot_needed_errata = True
     else:
         smt.log_info('Errata update not needed. Checking for package update')
