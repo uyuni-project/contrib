@@ -188,6 +188,12 @@ class SMTools:
         self.hostname = host_name
         self.get_server_id(fatal)
 
+    def set_hostname_only(self, host_name):
+        """
+        Set hostnam for global use.
+        """
+        self.hostname = host_name
+
     def close_program(self, return_code=0):
         """Close program and send mail if there is an error"""
         self.suman_logout()
@@ -477,6 +483,7 @@ class SMTools:
                                                                                              result_message))
 
     def system_schedulepackageinstall(self, packages, date, action):
+        self.log_info("Running Package refresh")
         try:
             schedule_id = self.client.system.schedulePackageInstall(self.session, self.systemid, packages, date)
         except xmlrpc.client.Fault as err:
@@ -779,7 +786,6 @@ class SMTools:
     """
     API call related to contentmanagement
     """
-
     def contentmanagement_attachsource(self, project, channel, fatal=True):
         try:
             return self.client.contentmanagement.attachSource(self.session, project, "software", channel)
@@ -823,8 +829,7 @@ class SMTools:
 
     def contentmanagement_createenvironment(self, project, pre_label, label, name, description):
         try:
-            return self.client.contentmanagement.createEnvironment(self.session, project, pre_label, label, name,
-                                                                   description)
+            return self.client.contentmanagement.createEnvironment(self.session, project, pre_label, label, name, description)
         except xmlrpc.client.Fault as err:
             self.log_debug('api-call: contentmanagement.createEnvironment')
             self.log_debug('Value passed: ')
@@ -915,6 +920,9 @@ class SMTools:
             self.log_debug("Error: \n{}".format(err))
             message = ('Unable to update environment {} in the project {}.'.format(environment, project))
             self.fatal_error(message)
+
+
+
 
     """
     API call related to configchannel
