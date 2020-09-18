@@ -20,7 +20,7 @@
 # 2020-06-29 M.Brookhuis - Version 2.
 #                        - changed logging
 #                        - moved api calls to smtools.py
-#
+# 2020-09-18 M.Brookhuis - Added HardwareRefresh to run anytime but don't wait on it
 #
 
 """
@@ -77,6 +77,7 @@ def do_upgrade(no_reboot, force_reboot):
     """
     do upgrade of packages
     """
+    timeout = smtools.CONFIGSM['suman']['timeout']
     updateble_patches = smt.system_getrelevanterrata()
     if updateble_patches:
         do_update_minion(updateble_patches)
@@ -87,7 +88,6 @@ def do_upgrade(no_reboot, force_reboot):
         for patch in updateble_patches:
             patches.append(patch.get('id'))
         smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "Errata update")
-        smt.system_schedulepackagerefresh(datetime.datetime.now())
         reboot_needed_errata = True
     else:
         smt.log_info('Errata update not needed. Checking for package update')
@@ -101,7 +101,6 @@ def do_upgrade(no_reboot, force_reboot):
     if rpms:
         smt.system_schedulepackageinstall(rpms, datetime.datetime.now(), "Packages update")
         smt.system_schedulepackagerefresh(datetime.datetime.now())
-        smt.system_schedulehardwarerefresh(datetime.datetime.now())
         reboot_needed_package = True
     else:
         smt.log_info("Package update not needed.")
@@ -111,6 +110,7 @@ def do_upgrade(no_reboot, force_reboot):
             reboot_needed_package = False
     if not no_reboot and reboot_needed_package and reboot_needed_errata:
         smt.system_schedulereboot(datetime.datetime.now())
+    smt.system_schedulehardwarerefresh(datetime.datetime.now(), True)
     return
 
 
@@ -122,8 +122,7 @@ def do_spmigrate(new_basechannel, no_reboot):
     old_basechannel = smt.system_getsubscribedbasechannel()
     (migration_available, migration_targets) = check_spmigration_available()
     if not migration_available:
-        smt.log_error("For the system {} no higher SupportPack is available. Please check in SUSE Manager GUI!!".format(
-            smt.hostname))
+        smt.log_error("For the system {} no higher SupportPack is available. Please check in SUSE Manager GUI!!".format(smt.hostname))
     sp_old = "sp" + str(old_basechannel.get('label').split("sp")[1][:1])
     sp_new = "sp" + str(new_basechannel.split("sp")[1][:1])
     if not smt.channel_software_getdetails(new_basechannel):
@@ -148,17 +147,13 @@ def do_spmigrate(new_basechannel, no_reboot):
             spident = migration_target['ident']
             break
     result_spmig = False
-    if smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True,
-                                      datetime.datetime.now(), "SupportPack Migration dry run"):
-        result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False,
-                                                      datetime.datetime.now(), "SupportPack Migration")
+    if smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.now(), "SupportPack Migration dry run"):
+        result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.now(), "SupportPack Migration")
     if result_spmig and not no_reboot:
         smt.log_info("Support Pack migration completed successful, rebooting server {}".format(smt.hostname))
         smt.system_schedulereboot(datetime.datetime.now())
     elif result_spmig and no_reboot:
-        smt.log_info(
-            "Support Pack migration completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(
-                smt.hostname))
+        smt.log_info("Support Pack migration completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(smt.hostname))
     smt.system_schedulepackagerefresh(datetime.datetime.now())
     smt.system_schedulehardwarerefresh(datetime.datetime.now())
 
@@ -322,8 +317,7 @@ def update_server(args):
     if server_is_exception_update():
         smt.fatal_error("Server {} is in list of exceptions and will not be updated.".format(args.server))
     if system_is_inactive():
-        smt.fatal_error(
-            "Server {} is inactive for at least a day. Please check. System will not be updated.".format(args.server))
+        smt.fatal_error("Server {} is inactive for at least a day. Please check. System will not be updated.".format(args.server))
     highstate_done = False
     if args.updatescript:
         highstate_done = do_update_script("begin")

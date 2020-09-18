@@ -461,7 +461,7 @@ class SMTools:
             self.error_handling('configupdate', message)
             return False
 
-    def system_schedulehardwarerefresh(self, date):
+    def system_schedulehardwarerefresh(self, date, nowait=False):
         self.log_info("Running Hardware refresh")
         try:
             schedule_id = self.client.system.scheduleHardwareRefresh(self.session, self.systemid, date)
@@ -472,15 +472,18 @@ class SMTools:
             self.log_debug('  date:  {}'.format(date))
             self.log_debug("Error: \n{}".format(err))
             self.fatal_error('Unable to schedule hardware refresh for server {}.'.format(self.hostname))
-        timeout = CONFIGSM['suman']['timeout']
-        (result_failed, result_completed, result_message) = self.check_progress(schedule_id, timeout,
-                                                                                "Hardware Refresh")
-        if result_completed == 1:
-            self.log_info("Hardware refresh completed successful.")
+        if nowait:
+            return
         else:
-            self.minor_error(
-                "Hardware refresh failed on server {}.\n\nThe error messages is:\n{}".format(self.hostname,
-                                                                                             result_message))
+            timeout = CONFIGSM['suman']['timeout']
+            (result_failed, result_completed, result_message) = self.check_progress(schedule_id, timeout,
+                                                                                    "Hardware Refresh")
+            if result_completed == 1:
+                self.log_info("Hardware refresh completed successful.")
+            else:
+                self.minor_error(
+                    "Hardware refresh failed on server {}.\n\nThe error messages is:\n{}".format(self.hostname,
+                                                                                                 result_message))
 
     def system_schedulepackageinstall(self, packages, date, action):
         self.log_info("Running Package refresh")
