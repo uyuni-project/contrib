@@ -20,7 +20,7 @@
 # 2020-06-29 M.Brookhuis - Version 2.
 #                        - changed logging
 #                        - moved api calls to smtools.py
-# 2020-09-18 M.Brookhuis - Added HardwareRefresh to run anytime but don't wait on it
+#
 #
 
 """
@@ -77,7 +77,6 @@ def do_upgrade(no_reboot, force_reboot):
     """
     do upgrade of packages
     """
-    timeout = smtools.CONFIGSM['suman']['timeout']
     updateble_patches = smt.system_getrelevanterrata()
     if updateble_patches:
         do_update_minion(updateble_patches)
@@ -102,12 +101,25 @@ def do_upgrade(no_reboot, force_reboot):
         smt.system_schedulepackageinstall(rpms, datetime.datetime.now(), "Packages update")
         smt.system_schedulepackagerefresh(datetime.datetime.now())
         reboot_needed_package = True
+        reboot_needed_errata = True
     else:
         smt.log_info("Package update not needed.")
         if reboot_needed_errata:
             reboot_needed_package = True
         else:
             reboot_needed_package = False
+    if reboot_needed_errata:
+        smt.log_debug("Reboot needed for Errata")
+    else:
+        smt.log_debug("No reboot needed for Errate")
+    if reboot_needed_package:
+        smt.log_debug("Reboot needed for updated packages")
+    else:
+        smt.log_debug("No reboot needed for updated packages")
+    if no_reboot:
+        smt.log_debug("Option no_reboot given")
+    if force_reboot:
+        smt.log_debug("Option force_reboot given")
     if not no_reboot and reboot_needed_package and reboot_needed_errata:
         smt.system_schedulereboot(datetime.datetime.now())
     smt.system_schedulehardwarerefresh(datetime.datetime.now(), True)
@@ -367,6 +379,8 @@ def main():
         smt = smtools.SMTools("system_update", args.server, True)
     # login to suse manager
     smt.log_info("Start")
+    smt.log_debug("The following arguments are set: ")
+    smt.log_debug(args)
     smt.suman_login()
     smt.set_hostname(args.server)
     update_server(args)
