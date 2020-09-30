@@ -1,0 +1,17 @@
+hub:
+  $type: group
+
+  iss_master:
+    $type: text
+    $name: FQDN of the HUB Master
+    $help: FQDN of the HUB Master
+    
+  server_username:
+    $type: text
+    $name: SUSE Manager admin
+    $help: On all involved SUSE Manager Servers there should be the same SUSE Manager admin.
+
+  server_password:
+    $type: password
+    $name: Password for SUSE Manager Admin
+    $help: enter the password for the SUSE Manager Admin.
