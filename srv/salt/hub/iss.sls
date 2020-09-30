@@ -14,7 +14,7 @@ register_master:
       - cmd: register_slave
 
 update_ca_truststore:
-  cmd.wait:
+  cmd.run:
     - name: ln -s /srv/www/htdocs/pub/RHN-ORG-TRUSTED-SSL-CERT /etc/pki/trust/anchors/RHN-ORG-TRUSTED-SSL-CERT-SLAVE && /usr/sbin/update-ca-certificates
 
 
