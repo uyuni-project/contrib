@@ -31,8 +31,7 @@ import argparse
 import datetime
 import os
 import xmlrpc.client
-from argparse import RawTextHelpFormatter
-
+import subprocess
 import smtools
 
 __smt = None
@@ -87,6 +86,7 @@ def do_upgrade(no_reboot, force_reboot):
         for patch in updateble_patches:
             patches.append(patch.get('id'))
         smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "Errata update")
+        smt.system_schedulepackagerefresh(datetime.datetime.now())
         reboot_needed_errata = True
     else:
         smt.log_info('Errata update not needed. Checking for package update')
@@ -349,6 +349,21 @@ def update_server(args):
     if args.applyconfig and not highstate_done:
         if smt.system_getdetails().get('base_entitlement') == "salt_entitled":
             smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.now()))
+    if args.post_script:
+        smt.log_info("Executing script {}".format(args.post_script))
+        if os.path.isfile(args.post_script.split(" ")[0]):
+            if "/" in args.post_script:
+                script = args.post_script.split(" ")[0]
+            else:
+                script = "./{}".format(args.post_script).split(" ")[0]
+            if " " in args.post_script:
+                param = args.post_script.lstrip(script)[1:]
+                run_script = subprocess.Popen([script, param])
+            else:
+                run_script = subprocess.Popen(script)
+            smt.log_info("Script executed with pid = {}".format(run_script.pid))
+        else:
+            smt.log_error("The given script does not exist")
 
 
 def main():
@@ -356,10 +371,7 @@ def main():
     Main function
     """
     global smt
-    parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=('''\
-        Usage:
-        system_update.py 
-            '''))
+    parser = argparse.ArgumentParser(description="Update the give system.")
     parser.add_argument('-s', '--server', help='name of the server to receive config update. Required')
     parser.add_argument("-n", "--noreboot", action="store_true", default=0,
                         help="Do not reboot server after patching or supportpack upgrade.")
@@ -368,7 +380,8 @@ def main():
     parser.add_argument("-c", '--applyconfig', action="store_true", default=0,
                         help="Apply configuration after and before patching")
     parser.add_argument("-u", "--updatescript", action="store_true", default=0,
-                        help="Excute the server specific _start and _end scripts")
+                        help="Execute the server specific _start and _end scripts")
+    parser.add_argument("-p", "--post_script", help="Execute given script on the SUSE Manger Server when system_update has finished")
     parser.add_argument('--version', action='version', version='%(prog)s 2.0.0, June 29, 2020')
     args = parser.parse_args()
     if not args.server:

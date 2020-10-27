@@ -128,7 +128,7 @@ class SMTools:
         self.error_text += errtxt
         self.error_text += "\n"
         self.error_found = True
-        self.log.error("{}".format(errtxt))
+        self.log_error("{}".format(errtxt))
         self.close_program(return_code)
 
     def log_info(self, errtxt):
@@ -187,6 +187,8 @@ class SMTools:
         """
         self.hostname = host_name
         self.get_server_id(fatal)
+        self.log_info("Hostname : {}".format(self.hostname))
+        self.log_info("Systemid : {}".format(self.systemid))
 
     def set_hostname_only(self, host_name):
         """
@@ -197,7 +199,7 @@ class SMTools:
     def close_program(self, return_code=0):
         """Close program and send mail if there is an error"""
         self.suman_logout()
-        self.log.info("Finished")
+        self.log_info("Finished")
         if self.error_found:
             if CONFIGSM['smtp']['sendmail']:
                 self.send_mail()
@@ -207,7 +209,7 @@ class SMTools:
 
     def exit_program(self, return_code=0):
         """Exit program and send mail if there is an error"""
-        self.log.info("Finished")
+        self.log_info("Finished")
         if self.error_found:
             if CONFIGSM['smtp']['sendmail']:
                 self.send_mail()
@@ -413,13 +415,13 @@ class SMTools:
         self.log_info("Performing {}".format(action))
         try:
             schedule_id = self.client.system.scheduleApplyErrata(self.session, self.systemid, patches, date)[0]
-        except xmlrpc.client.Fault as err:
             self.log_debug('api-call: system.scheduleApplyErrata')
             self.log_debug('Value passed: ')
             self.log_debug('  system_id:  {}'.format(self.systemid))
             self.log_debug('  patches:    {}'.format(patches))
             self.log_debug('  date:       {}'.format(date))
             self.log_debug("Error: \n{}".format(err))
+        except xmlrpc.client.Fault as err:
             self.fatal_error('Unable to schedule update patches for server{}.'.format(self.hostname))
         timeout = CONFIGSM['suman']['timeout']
         (result_failed, result_completed, result_message) = self.check_progress(schedule_id, timeout, action)
@@ -435,7 +437,7 @@ class SMTools:
             elif errlev.lower() == "warning":
                 self.log_warning(message)
             else:
-                self.error_handling('reboot', "Reboot failed. Please reboot manually ASAP.")
+                self.error_handling('update', "Errata failed.")
             return False
 
     def system_scheduleapplyhighstate(self, date, test=False):
@@ -486,7 +488,7 @@ class SMTools:
                                                                                                  result_message))
 
     def system_schedulepackageinstall(self, packages, date, action):
-        self.log_info("Running Package refresh")
+        self.log_info("Running {}".format(action))
         try:
             schedule_id = self.client.system.schedulePackageInstall(self.session, self.systemid, packages, date)
         except xmlrpc.client.Fault as err:
