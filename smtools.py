@@ -287,6 +287,11 @@ class SMTools:
         """
         (failed_count, completed_count, result_message) = self.event_status(action_id)
         end_time = datetime.datetime.now() + datetime.timedelta(0, timeout)
+        try:
+            wait_time = CONFIGSM['maintenance']['wait_between_events_check']
+        except:
+            wait_time = 15
+            self.minor_error("Please set value for maintenance | wait_between_events_check")
         while failed_count == 0 and completed_count == 0:
             if datetime.datetime.now() > end_time:
                 message = "Action '{}' run in timeout. Please check server {}.".format(action, self.hostname)
@@ -294,7 +299,7 @@ class SMTools:
                 return 1, 0, message
             (failed_count, completed_count, result_message) = self.event_status(action_id)
             self.log_info("Still Running")
-            time.sleep(15)
+            time.sleep(wait_time)
         return failed_count, completed_count, result_message
 
     def error_handling(self, err_type, message):
@@ -415,13 +420,13 @@ class SMTools:
         self.log_info("Performing {}".format(action))
         try:
             schedule_id = self.client.system.scheduleApplyErrata(self.session, self.systemid, patches, date)[0]
+        except xmlrpc.client.Fault as err:
             self.log_debug('api-call: system.scheduleApplyErrata')
             self.log_debug('Value passed: ')
             self.log_debug('  system_id:  {}'.format(self.systemid))
             self.log_debug('  patches:    {}'.format(patches))
             self.log_debug('  date:       {}'.format(date))
             self.log_debug("Error: \n{}".format(err))
-        except xmlrpc.client.Fault as err:
             self.fatal_error('Unable to schedule update patches for server{}.'.format(self.hostname))
         timeout = CONFIGSM['suman']['timeout']
         (result_failed, result_completed, result_message) = self.check_progress(schedule_id, timeout, action)
@@ -791,6 +796,7 @@ class SMTools:
     """
     API call related to contentmanagement
     """
+
     def contentmanagement_attachsource(self, project, channel, fatal=True):
         try:
             return self.client.contentmanagement.attachSource(self.session, project, "software", channel)
@@ -834,7 +840,8 @@ class SMTools:
 
     def contentmanagement_createenvironment(self, project, pre_label, label, name, description):
         try:
-            return self.client.contentmanagement.createEnvironment(self.session, project, pre_label, label, name, description)
+            return self.client.contentmanagement.createEnvironment(self.session, project, pre_label, label, name,
+                                                                   description)
         except xmlrpc.client.Fault as err:
             self.log_debug('api-call: contentmanagement.createEnvironment')
             self.log_debug('Value passed: ')
@@ -925,9 +932,6 @@ class SMTools:
             self.log_debug("Error: \n{}".format(err))
             message = ('Unable to update environment {} in the project {}.'.format(environment, project))
             self.fatal_error(message)
-
-
-
 
     """
     API call related to configchannel
