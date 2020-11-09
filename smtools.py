@@ -5,7 +5,7 @@
 # (c) 2013 SUSE Linux GmbH, Germany.
 # GNU Public License. No warranty. No Support (only from SUSE Consulting)
 #
-# Version: 2020-03-21
+# Version: 2020-11-09
 #
 # Created by: SUSE Michael Brookhuis,
 #
@@ -16,6 +16,7 @@
 # 2018-11-15 M.Brookhuis - Moved to python3.
 #                        - Moved config to YAML
 # 2020-03-21 M.Brookhuis - RC 1 if there has been an error
+# 2020-11-09 M.Brookhuis - Added maintenance|wait_between_events_check option. This should also be added to configsm.yaml.
 #
 # coding: utf-8
 
