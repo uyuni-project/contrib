@@ -7,22 +7,20 @@ Tools to install and configure SUSE Manager Hub.
 * In the GUI of the SUSE Manager HUB master, create a systemgroup (eg hub-slaves)
 * Under the tab **Formulas** select **Sumahub**
 * There will be a new tab with the name **Sumahub** and fill in all the information.
-* Add the systemgroup to the activation key used to register the SUSE Manager Server that will become a HUB slave.
-
+* If there are already hub slaves, add them to the systemgroup.
 
 ## Add a SUSE Manager HUB slave server:
 * Install a new SUSE Manager Server.
 * Register the server against the SUSE Manager HUB master.
-* Configure the SUSE Manager Server.
+* Configure the SUSE Manager Server via __yast susemanager_setup.
 * Goto the GUI of the new installed server, but:
-  * use the same organization name as from the HUB Master
-  * the admin should be the same a entered in the formula
-* Issue the following command: __salt-call state.apply hub
+* Add the system to the above created systemgroup.
+* Select the systemgroup and go to the tab **Sumahub**
+* Add the new server as slave and, if needed, add extra base channels the hub-slave should receive.
+* Perfrom a high state on the new hub slave
 
-## Note
-* Working on a state that will configure the SUSE Mananager on the HUB slave
-* Working on a script to run mgr-inter-sync to synchronize all the software channels
-* Working on a state to sync the bootstrap repositories
+## Daily Bootstrap Repositories Sync
+* Create a cron job to run the script /opt/sumahub/hub_scp_bootstrap_repos.sh daily. Or if you want weekly. This script will sync the bootstrap repositories to all systems.  
 
 
 
