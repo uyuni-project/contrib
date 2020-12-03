@@ -370,35 +370,39 @@ def main():
     """
     Main function
     """
-    global smt
-    parser = argparse.ArgumentParser(description="Update the give system.")
-    parser.add_argument('-s', '--server', help='name of the server to receive config update. Required')
-    parser.add_argument("-n", "--noreboot", action="store_true", default=0,
-                        help="Do not reboot server after patching or supportpack upgrade.")
-    parser.add_argument("-f", "--forcereboot", action="store_true", default=0,
-                        help="Force a reboot server after patching or supportpack upgrade.")
-    parser.add_argument("-c", '--applyconfig', action="store_true", default=0,
-                        help="Apply configuration after and before patching")
-    parser.add_argument("-u", "--updatescript", action="store_true", default=0,
-                        help="Execute the server specific _start and _end scripts")
-    parser.add_argument("-p", "--post_script", help="Execute given script on the SUSE Manger Server when system_update has finished")
-    parser.add_argument('--version', action='version', version='%(prog)s 2.0.0, June 29, 2020')
-    args = parser.parse_args()
-    if not args.server:
-        smt = smtools.SMTools("system_update")
-        smt.log_error("The option --server is mandatory. Exiting script")
-        smt.exit_program(1)
-    else:
-        smt = smtools.SMTools("system_update", args.server, True)
-    # login to suse manager
-    smt.log_info("Start")
-    smt.log_debug("The following arguments are set: ")
-    smt.log_debug(args)
-    smt.suman_login()
-    smt.set_hostname(args.server)
-    update_server(args)
-    smt.close_program()
-
+    try:
+        global smt
+        parser = argparse.ArgumentParser(description="Update the give system.")
+        parser.add_argument('-s', '--server', help='name of the server to receive config update. Required')
+        parser.add_argument("-n", "--noreboot", action="store_true", default=0,
+                            help="Do not reboot server after patching or supportpack upgrade.")
+        parser.add_argument("-f", "--forcereboot", action="store_true", default=0,
+                            help="Force a reboot server after patching or supportpack upgrade.")
+        parser.add_argument("-c", '--applyconfig', action="store_true", default=0,
+                            help="Apply configuration after and before patching")
+        parser.add_argument("-u", "--updatescript", action="store_true", default=0,
+                            help="Execute the server specific _start and _end scripts")
+        parser.add_argument("-p", "--post_script", help="Execute given script on the SUSE Manger Server when system_update has finished")
+        parser.add_argument('--version', action='version', version='%(prog)s 2.0.0, June 29, 2020')
+        args = parser.parse_args()
+        if not args.server:
+            smt = smtools.SMTools("system_update")
+            smt.log_error("The option --server is mandatory. Exiting script")
+            smt.exit_program(1)
+        else:
+            smt = smtools.SMTools("system_update", args.server, True)
+        # login to suse manager
+        smt.log_info("Start")
+        smt.log_debug("The following arguments are set: ")
+        smt.log_debug(args)
+        smt.suman_login()
+        smt.set_hostname(args.server)
+        update_server(args)
+        smt.close_program()
+    except Exception as err:
+        smt.log_debug("general error:")
+        smt.log_debug(err)
+        raise
 
 if __name__ == "__main__":
     SystemExit(main())
