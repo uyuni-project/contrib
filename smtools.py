@@ -443,7 +443,7 @@ class SMTools:
             elif errlev.lower() == "warning":
                 self.log_warning(message)
             else:
-                self.error_handling('update', "Errata failed.")
+                self.error_handling('update', message)
             return False
 
     def system_scheduleapplyhighstate(self, date, test=False):

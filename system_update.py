@@ -83,8 +83,12 @@ def do_upgrade(no_reboot, force_reboot):
     updateble_patches = smt.system_getrelevanterrata()
     if updateble_patches:
         patches = []
+        patchnames = []
         for patch in updateble_patches:
             patches.append(patch.get('id'))
+            patchnames.append(patch.get('advisory_name'))
+        smt.log_debug("The following patches are planned:")
+        smt.log_debug(patchnames)
         smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "Errata update")
         smt.system_schedulepackagerefresh(datetime.datetime.now())
         reboot_needed_errata = True
@@ -95,9 +99,13 @@ def do_upgrade(no_reboot, force_reboot):
         else:
             reboot_needed_errata = False
     rpms = []
+    rpmnames = []
     for rpm in smt.system_listlatestupgradablepackages():
         rpms.append(rpm.get('to_package_id'))
+        rpmnames.append(rpm.get('name'))
     if rpms:
+        smt.log_debug("The following packages are planned:")
+        smt.log_debug(rpmnames)
         smt.system_schedulepackageinstall(rpms, datetime.datetime.now(), "Packages update")
         smt.system_schedulepackagerefresh(datetime.datetime.now())
         reboot_needed_package = True
