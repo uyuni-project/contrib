@@ -23,8 +23,6 @@ Files:
 * Under the tab **Formulas** select **Sumahub**
 * There will be a new tab with the name **Sumahub** and fill in all the information.
 * If there are already hub slaves, add them to the system group
-* Create a state configuration channel with the name **sumahub** and for the init.sls use the content of `/srv/salt/sumahub/sumahub.sls`
-* Assign this configuration channel to the above created system group
 
 ## Add a new SUSE Manager as a HUB slave server
 * Install a new SUSE Manager Server
