@@ -17,30 +17,31 @@ Files:
 ## Installation instructions
 
 * download the files and copy to the hub-master
+* populate file `/opt/sumahub/smconfig.yaml` with the needed properties
 * Run /opt/sumahub/hub_dailyrun.py
 * In the GUI of the SUSE Manager HUB master, create a systemgroup (eg hub-slaves)
 * Under the tab **Formulas** select **Sumahub**
 * There will be a new tab with the name **Sumahub** and fill in all the information.
-* If there are already hub slaves, add them to the systemgroup.
-* Create a state configuration channel with the name **sumahub** and for the init.sls use the content of /srv/salt/sumahub/sumahub.sls.
-* Assing this configuration channel to the above created systemgroup.
+* If there are already hub slaves, add them to the system group
+* Create a state configuration channel with the name **sumahub** and for the init.sls use the content of `/srv/salt/sumahub/sumahub.sls`
+* Assign this configuration channel to the above created system group
 
-## Add a SUSE Manager HUB slave server:
-* Install a new SUSE Manager Server.
-* Register the server against the SUSE Manager HUB master.
-* Configure the SUSE Manager Server via yast susemanager_setup.
-* Goto the GUI of the new installed server, but:
-* Add the system to the above created systemgroup.
-* Select the systemgroup and go to the tab **Sumahub**
-* Add the new server as slave and, if needed, add extra base channels the hub-slave should receive.
-* Perfrom a high state on the new hub slave
+## Add a new SUSE Manager as a HUB slave server
+* Install a new SUSE Manager Server
+* Register the server against the SUSE Manager HUB master as a salt minion
+* Configure the SUSE Manager Server via yast susemanager_setup
+* On the SUSE Manager HUB server:
+  * Add the system to the above created systemgroup.
+  * On the systemgroup details page go to the tab **Formulas** and select sub-tab **Sumahub**
+  * Add the new server as slave and, if needed, add any extra base channels the hub-slave should receive
+  * Perform a high state on the new SUSE Manager hub slave
 
-## Daily jobs running on master ISS
+## Daily jobs running on SUSE Manager HUB master
 * Create a cron job to run the script /opt/sumahub/hub_scp_bootstrap_repos.sh daily. Or if you want weekly. This script will sync the bootstrap repositories to all systems.  
 * Create a cron job to run the script /opt/sumahub/hub_dailyrun.py daily. Or if you want weekly. This script will update the /srv/formula_metadata/sumahub/form.yml with actual data. This should also run after installing these tools.
 * example:
 
-## Jobs running on slave
+## Jobs running on SUSE Manager HUB slave
 * The job update_config_channels.py will run every day and will update all salt configuration channels. The highstate will create a cron job for this. This will be logged to /var/log/rhn/sumahub/update_config_channels.log
 * The job sync_software.py will normally only run during a highstate. When channels to be synchronized are changed (currently only adding, see below), a highstate has to be performed on all slaves. This highstate will update the sumahub.yaml and execute this script. Every night, taskomatic will synchronize all assigned channels automatically. This will be logged to /var/log/rhn/sumahub/sync_software.log. 
 * The job register_slave.py will normally only run during a highstate and only the first time. This will be logged to /var/log/rhn/sumahub/register_slave.log 
