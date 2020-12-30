@@ -47,6 +47,30 @@ log.addHandler(console)
 log.addHandler(fh)
 
 
+def do_update(channel_type, slave_configs, master_configs, m_client, m_session, s_client, s_session):
+    try:
+        for channel in sumahub[channel_type]['configchannels']:
+            found = False
+            for config in slave_configs:
+                if channel == config.get('label'):
+                    for m_config in master_configs:
+                        if channel == m_config.get('label'):
+                            update_configchannel(config, m_config, m_client, m_session, s_client, s_session)
+                            found = True
+                            break
+            if not found:
+                log.info("Creating channel {}".format(channel))
+                cinfo = m_client.configchannel.getDetails(m_session, channel)
+                s_client.configchannel.create(s_session, cinfo.get('label'), cinfo.get('name'),
+                                              cinfo.get('description'), "state")
+                for m_config in master_configs:
+                    if channel == m_config.get('label'):
+                        create_configchannel(m_config, m_client, m_session, s_client, s_session)
+                        break
+    except:
+        log.info("no {} configchannels".format(channel_type))
+
+
 def sync_config(m_client, m_session, s_client, s_session, hub_slave):
     try:
         slave_configs = s_client.configchannel.listGlobals(s_session)
@@ -59,51 +83,8 @@ def sync_config(m_client, m_session, s_client, s_session, hub_slave):
         log.warning("Unable to get a list of configuration channels on master. Could be that there are none. Aborting")
         log.warning("Error:\n{}".format(err))
         return
-
-    try:
-        for channel in sumahub['all']['configchannels']:
-            found = False
-            for config in slave_configs:
-                if channel == config.get('label'):
-                    for m_config in master_configs:
-                        if channel == m_config.get('label'):
-                            update_configchannel(config, m_config, m_client, m_session, s_client, s_session)
-                            found = True
-                            break
-            if not found:
-                log.info("Creating channel {}".format(channel))
-                # een aparte sectie maken. en kijken waarom channel general toch in deze else wordt gedaan.
-                cinfo = m_client.configchannel.getDetails(m_session, channel)
-                s_client.configchannel.create(s_session, cinfo.get('label'), cinfo.get('name'),
-                                              cinfo.get('description'), "state")
-                for m_config in master_configs:
-                    if channel == m_config.get('label'):
-                        create_configchannel(m_config, m_client, m_session, s_client, s_session)
-                        break
-    except:
-        log.info("no global configchannels")
-
-    try:
-        for channel in sumahub[hub_slave]['configchannels']:
-            found = False
-            for config in slave_configs:
-                if channel == config.get('label'):
-                    for m_config in master_configs:
-                        if channel == m_config.get('label'):
-                            update_configchannel(config, m_config, m_client, m_session, s_client, s_session)
-                            found = True
-                            break
-            if not found:
-                log.info("Creating channel {}".format(channel))
-                cinfo = m_client.configchannel.getDetails(m_session, channel)
-                s_client.configchannel.create(s_session, cinfo.get('label'), cinfo.get('name'),
-                                              cinfo.get('description'), "state")
-                for m_config in master_configs:
-                    if channel == m_config.get('label'):
-                        create_configchannel(m_config, m_client, m_session, s_client, s_session)
-                        break
-    except:
-        log.info("no slave configchannels")
+    do_update('all', slave_configs, master_configs, m_client, m_session, s_client, s_session)
+    do_update(hub_slave, slave_configs, master_configs, m_client, m_session, s_client, s_session)
 
 
 def update_configchannel(s_channel, m_channel, m_client, m_session, s_client, s_session):
@@ -125,16 +106,14 @@ def update_configchannel(s_channel, m_channel, m_client, m_session, s_client, s_
         for s_file in s_files:
             if m_file.get('path') == s_file.get('path'):
                 try:
-                    m_fileinfo = m_client.configchannel.lookupFileInfo(m_session, m_channel.get('label'),
-                                                                       [m_file.get('path')])
+                    m_fileinfo = m_client.configchannel.lookupFileInfo(m_session, m_channel.get('label'), [m_file.get('path')])
                 except xmlrpc.client.Fault as err:
-                    log.warning("Unable to receive fileinfo from file on master: {}".m_file.get('path'))
+                    log.warning("Unable to receive fileinfo from file on master: {}".format(m_file.get('path')))
                     log.warning("Error:\n{}".format(err))
                 try:
-                    s_fileinfo = s_client.configchannel.lookupFileInfo(s_session, s_channel.get('label'),
-                                                                       [s_file.get('path')])
+                    s_fileinfo = s_client.configchannel.lookupFileInfo(s_session, s_channel.get('label'), [s_file.get('path')])
                 except xmlrpc.client.Fault as err:
-                    log.warning("Unable to receive fileinfo from file on master: {}".m_file.get('path'))
+                    log.warning("Unable to receive fileinfo from file on master: {}".format(m_file.get('path')))
                     log.warning("Error:\n{}".format(err))
                 for x in m_fileinfo:
                     for y in s_fileinfo:
@@ -145,8 +124,7 @@ def update_configchannel(s_channel, m_channel, m_client, m_session, s_client, s_
                             log.info("Updating file:  {} to revision {}".format(m_file.get('path'), x.get('revision')))
                             if m_file.get('type') == "sls":
                                 try:
-                                    s_client.configchannel.updateInitSls(s_session, s_channel.get('label'),
-                                                                         {'contents': x.get('contents')})
+                                    s_client.configchannel.updateInitSls(s_session, s_channel.get('label'), {'contents': x.get('contents')})
                                 except xmlrpc.client.Fault as err:
                                     log.warning("Unable to create file: init.sls")
                                     log.warning("Error:\n{}".format(err))
@@ -171,7 +149,7 @@ def update_configchannel(s_channel, m_channel, m_client, m_session, s_client, s_
                 m_fileinfo = m_client.configchannel.lookupFileInfo(m_session, m_channel.get('label'),
                                                                    [m_file.get('path')])
             except xmlrpc.client.Fault as err:
-                log.warning("Unable to receive fileinfo from file on master: {}".m_file.get('path'))
+                log.warning("Unable to receive fileinfo from file on master: {}".format(m_file.get('path')))
                 log.warning("Error:\n{}".format(err))
             if m_file.get('type') == "sls":
                 try:
@@ -183,7 +161,7 @@ def update_configchannel(s_channel, m_channel, m_client, m_session, s_client, s_
             else:
                 try:
                     s_client.configchannel.createOrUpdatePath(s_session, s_channel.get('label'),
-                                                              x.get('path'), False,
+                                                              m_file.get('path'), False,
                                                               {'revision': m_fileinfo[0].get('revision'),
                                                                'contents': m_fileinfo[0].get('contents'),
                                                                'owner': 'root', 'group': 'root',
@@ -207,7 +185,7 @@ def create_configchannel(m_channel, m_client, m_session, s_client, s_session):
         try:
             m_fileinfo = m_client.configchannel.lookupFileInfo(m_session, m_channel.get('label'), [m_file.get('path')])
         except xmlrpc.client.Fault as err:
-            log.warning("Unable to receive fileinfo from file: {}".m_file.get('path'))
+            log.warning("Unable to receive fileinfo from file: {}".format(m_file.get('path')))
             log.warning("Error:\n{}".format(err))
         if m_file.get('type') == "sls":
             log.info("Creating file: init.sls")

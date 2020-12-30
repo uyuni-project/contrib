@@ -91,7 +91,6 @@ def sync_channels(needed_base, m_client, m_session, s_client, s_session):
 
 def get_needed_base_channels(hub_slave, m_client, m_session):
     # get all base channels
-    all_channels = None
     try:
         all_channels = m_client.channel.listSoftwareChannels(m_session)
     except xmlrpc.client.Fault as err:
@@ -105,25 +104,31 @@ def get_needed_base_channels(hub_slave, m_client, m_session):
             abcl.append(c.get('label'))
     # defined basechannels
     needed = []
-    for channel in sumahub['all']['basechannels']:
-        needed.append(channel)
     try:
-        for channel in sumahub[hub_slave]['basechannels']:
+        for channel in sumahub['all']['basechannels']:
             needed.append(channel)
-    except:
-        log.info("no specific channels for this hub slave")
-    # defined projects
-    for project in sumahub['all']['projects']:
-        for channel in abcl:
-            if channel.startswith(project):
+        try:
+            for channel in sumahub[hub_slave]['basechannels']:
                 needed.append(channel)
+        except:
+            log.info("no specific channels for this hub slave")
+    except:
+        log.info("no general channels defined")
+    # defined projects
     try:
-        for project in sumahub[hub_slave]['projects']:
+        for project in sumahub['all']['projects']:
             for channel in abcl:
                 if channel.startswith(project):
                     needed.append(channel)
+        try:
+            for project in sumahub[hub_slave]['projects']:
+                for channel in abcl:
+                    if channel.startswith(project):
+                        needed.append(channel)
+        except:
+            log.info("no specific projects for this hub slave")
     except:
-        log.info("no specific channels for this hub slave")
+        log.info("no general projects defined")
     return needed
 
 
