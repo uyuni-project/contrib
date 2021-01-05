@@ -243,36 +243,42 @@ class SMTools:
         except xmlrpc.client.Fault:
             self.log_error("Unable to logout from SUSE Manager {}".format(CONFIGSM['suman']['server']))
 
-    def get_server_id(self, fatal=True):
+    def get_server_id(self, fatal=True, name=""):
         """
         Get system Id from host
         """
+        if name:
+            hostname = name
+        else:
+            hostname = self.hostname
+
         all_sid = ""
         try:
-            all_sid = self.client.system.getId(self.session, self.hostname)
+            all_sid = self.client.system.getId(self.session, hostname)
         except xmlrpc.client.Fault:
-            self.fatal_error("Unable to get systemid from system {}. Is this system registered?".format(self.hostname))
+            self.fatal_error("Unable to get systemid from system {}. Is this system registered?".format(hostname))
         system_id = 0
         for x in all_sid:
             if system_id == 0:
                 system_id = x.get('id')
             else:
                 if fatal:
-                    self.fatal_error("Duplicate system {}. Please fix and run again.".format(self.hostname))
+                    self.fatal_error("Duplicate system {}. Please fix and run again.".format(hostname))
                 else:
-                    self.log_error("Duplicate system {}. Please fix and run again.".format(self.hostname))
+                    self.log_error("Duplicate system {}. Please fix and run again.".format(hostname))
                     self.log_debug(
-                        "The following system id have been found for system {}:\n{}".format(self.hostname, all_sid))
+                        "The following system id have been found for system {}:\n{}".format(hostname, all_sid))
         if system_id == 0:
             if fatal:
                 self.fatal_error(
-                    "Unable to get systemid from system {}. Is this system registered?".format(self.hostname))
+                    "Unable to get systemid from system {}. Is this system registered?".format(hostname))
             else:
                 self.log_error(
-                    "Unable to get systemid from system {}. Is this system registered?".format(self.hostname))
+                    "Unable to get systemid from system {}. Is this system registered?".format(hostname))
         self.systemid = system_id
         return system_id
 
+    '''
     def event_status(self, action_id):
         """
         Check status of event
@@ -302,6 +308,34 @@ class SMTools:
             self.log_info("Still Running")
             time.sleep(wait_time)
         return failed_count, completed_count, result_message
+    '''
+
+    def check_progress(self, action_id, timeout, action):
+        """
+        Check progress of action
+        """
+        end_time = datetime.datetime.now() + datetime.timedelta(0, timeout)
+        in_progress = self.schedule_listinprogresssystems(action_id)
+        try:
+            wait_time = CONFIGSM['maintenance']['wait_between_events_check']
+        except:
+            wait_time = 15
+            self.minor_error("Please set value for maintenance | wait_between_events_check")
+        time.sleep(wait_time)
+        while in_progress:
+            self.log_info("Still Running")
+            if datetime.datetime.now() > end_time:
+                message = "Action '{}' run in timeout. Please check server {}.".format(action, self.hostname)
+                self.error_handling('timeout_passed', message)
+                return 1, 0, message
+            time.sleep(wait_time)
+            in_progress = self.schedule_listinprogresssystems(action_id)
+        completed = self.schedule_listcompletedsystems(action_id)
+        if completed:
+            return 0, 1, completed[0].get("message")
+        else:
+            return 1, 0, self.schedule_listfailedsystems(action_id)[0].get("message")
+
 
     def error_handling(self, err_type, message):
         if CONFIGSM['error_handling'][err_type].lower() == "error":
@@ -329,6 +363,17 @@ class SMTools:
             self.log_debug('  system_id:  {}'.format(self.systemid))
             self.log_debug("Error: \n{}".format(err))
             self.fatal_error('Unable to get details for server {}.'.format(self.hostname))
+
+    def system_getname(self, id):
+        try:
+            return self.client.system.getName(self.session, id)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.getName')
+            self.log_debug('Value passed: ')
+            self.log_debug('  system_id:  {}'.format(id))
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error('Unable to get hostname for server with ID {}.'.format(id))
+
 
     def system_getrelevanterrata(self):
         try:
@@ -993,6 +1038,17 @@ class SMTools:
             message = ('Unable to get list of systems assgined to system group {}'.format(group))
             self.fatal_error(message)
 
+    def systemgroup_listactivesystemsingroup(self, group):
+        try:
+            return self.client.systemgroup.listActiveSystemsInGroup(self.session, group)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: systemgroup.listActiveSystemsInGroup')
+            self.log_debug('Value passed: ')
+            self.log_debug('  Group:          {}'.format(group))
+            self.log_debug("Error: \n{}".format(err))
+            message = ('Unable to get list of systems assgined to system group {}'.format(group))
+            self.log_error(message)
+
     """
     API call related to kickstart.keys
     """
@@ -1004,4 +1060,41 @@ class SMTools:
             self.log_debug('api-call: kickstart.keys.listAllKeys')
             self.log_debug("Error: \n{}".format(err))
             message = 'Unable to get a list of keys.'
+            self.fatal_error(message)
+
+    """
+    API call related to schedule
+    """
+
+    def schedule_listinprogresssystems(self, action_id):
+        try:
+            return self.client.schedule.listInProgressSystems(self.session, action_id)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: schedule.listInProgressSystems')
+            self.log_debug('Value passed: ')
+            self.log_debug('  Event ID: {}'.format(action_id))
+            self.log_debug("Error: \n{}".format(err))
+            message = 'Unable to get events in progress for id {}. The error is: \n{}'.format(action_id, err)
+            self.fatal_error(message)
+
+    def schedule_listcompletedsystems(self, action_id):
+        try:
+            return self.client.schedule.listCompletedSystems(self.session, action_id)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: schedule.listCompletedSystems')
+            self.log_debug('Value passed: ')
+            self.log_debug('  Event ID: {}'.format(action_id))
+            self.log_debug("Error: \n{}".format(err))
+            message = 'Unable to get events in completes for id {}. The error is: \n{}'.format(action_id, err)
+            self.fatal_error(message)
+
+    def schedule_listfailedsystems(self, action_id):
+        try:
+            return self.client.schedule.listFailedSystems(self.session, action_id)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: schedule.listCompletedSystems')
+            self.log_debug('Value passed: ')
+            self.log_debug('  Event ID: {}'.format(action_id))
+            self.log_debug("Error: \n{}".format(err))
+            message = 'Unable to get events in failed for id {}. The error is: \n{}'.format(action_id, err)
             self.fatal_error(message)
