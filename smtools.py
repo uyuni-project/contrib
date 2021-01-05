@@ -17,6 +17,7 @@
 #                        - Moved config to YAML
 # 2020-03-21 M.Brookhuis - RC 1 if there has been an error
 # 2020-11-09 M.Brookhuis - Added maintenance|wait_between_events_check option. This should also be added to configsm.yaml.
+# 2021-01-05 M.Brookhuis - Optimized events checking
 #
 # coding: utf-8
 
