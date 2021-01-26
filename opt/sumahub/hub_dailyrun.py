@@ -41,7 +41,6 @@ log.addHandler(console)
 log.addHandler(fh)
 
 
-
 if not os.path.isfile(os.path.dirname(__file__) + "/smconfig.yaml"):
     log.error("ERROR: smconfig.yaml doesn't exist. Please create file")
     sys.exit(1)
@@ -235,19 +234,36 @@ def get_slaves(session, client):
     return slaves
 
 
+def get_slaves_systemgroup(session, client, systemgroup):
+    all_slaves = None
+    try:
+        all_slaves = client.systemgroup.listSystemsMinimal(session, systemgroup)
+    except xmlrpc.client.Fault as err:
+        log.error("Unable to get a list of systems for systemgroup {}".format(systemgroup))
+        log.error('Error:')
+        log.error(err)
+    slaves = []
+    for c in all_slaves:
+        slaves.append(c.get('name'))
+    return slaves
+
+
 def main():
-    if len(sys.argv) != 1:
-        log.error("Usage: hub_dailyrun.py")
-        sys.exit(1)
-    url = "http://{}/rpc/api".format(sumahub['suman']['hubmaster'])
     client = xmlrpc.client.Server("http://{}/rpc/api".format(sumahub['suman']['hubmaster']))
     session_key = client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
-
+    if len(sys.argv) == 1:
+        slaves = get_slaves_systemgroup(session_key, client, sys.argv[1])
+    elif len(sys.argv) > 1:
+        log.error("Usage: hub_dailyrun.py")
+        client.auth.logout(session_key)
+        sys.exit(1)
+    else:
+        slaves = get_slaves(session_key, client)
     clm_projects = get_clm_projects(session_key, client)
     base_channels = get_base_channels(session_key, client)
     config_channels = get_config_channels(session_key, client)
-    slaves = get_slaves(session_key, client)
     write_form_yml(clm_projects, base_channels, slaves, config_channels)
+    client.auth.logout(session_key)
 
 
 if __name__ == "__main__":

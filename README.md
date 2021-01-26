@@ -18,7 +18,7 @@ Files:
 
 * download the files and copy to the hub-master
 * populate file `/opt/sumahub/smconfig.yaml` with the needed properties
-* Run /opt/sumahub/hub_dailyrun.py
+* Run /opt/sumahub/hub_dailyrun.py is their are only SUSE Manager Server registered to this master. If not, enter the systemgroup name as parameter (eg hub-slaves)
 * In the GUI of the SUSE Manager HUB master, create a systemgroup (eg hub-slaves)
 * Under the tab **Formulas** select **Sumahub**
 * There will be a new tab with the name **Sumahub** and fill in all the information.
