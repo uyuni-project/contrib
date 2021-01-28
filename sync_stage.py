@@ -92,16 +92,14 @@ def update_project(args):
                 for channel in all_channels_label:
                     if channel.startswith(channel_start):
                         channel_details = smt.channel_software_getdetails(channel)
-                        if not channel_start in channel_details.get(
-                                'parent_channel_label') and not "bu-" in channel_details.get('parent_channel_label'):
+                        if not channel_start in channel_details.get('parent_channel_label') and not "bu-" in channel_details.get('parent_channel_label'):
                             if not channel_details.get('parent_channel_label').startswith(channel_start):
-                                create_backup(channel)
-                                break
+                                 create_backup(channel)
+                                 break
             if args.message:
                 build_message = args.message
             else:
-                dat = ("%s-%02d-%02d" % (
-                    datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day))
+                dat = ("%s-%02d-%02d" % (datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day))
                 build_message = "Created on {}".format(dat)
             if number_in_list == 1:
                 smt.contentmanagement_buildproject(args.project, build_message)

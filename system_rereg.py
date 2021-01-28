@@ -3,7 +3,7 @@
 # system_rereg.py
 #
 # (c) 2018 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting
+# GNU Public License. No warranty. No Support
 #
 # Version: 2020-06-30
 #
@@ -25,12 +25,12 @@ This script re-register a system against a proxy
 """
 
 import argparse
-import datetime
-import os
-import time
 from argparse import RawTextHelpFormatter
-
+import xmlrpc.client
+import os
+import datetime
 import smtools
+import time
 
 __smt = None
 
@@ -102,8 +102,7 @@ fi
 exit $rc""".format(proxy=proxy, key=rereg_key)
 
         else:
-            script = "#!/bin/bash\nrhnreg_ks --activationkey={} --serverUrl=https://{}/XMLRPC --force\n".format(
-                rereg_key, proxy)
+            script = "#!/bin/bash\nrhnreg_ks --activationkey={} --serverUrl=https://{}/XMLRPC --force\n".format(rereg_key, proxy)
         smt.system_schedulescriptrun(script, 6000, datetime.datetime.now())
 
 

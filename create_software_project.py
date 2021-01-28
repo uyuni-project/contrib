@@ -3,7 +3,8 @@
 # Create_software_project
 #
 # (c) 2018 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting
+# GNU Public License. No warranty. No Support
+# For question/suggestions/bugs mail: michael.brookhuis@suse.com
 #
 # Version: 2020-07-08
 #

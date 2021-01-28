@@ -3,7 +3,8 @@
 # group_system_update
 #
 # (c) 2018 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting
+# GNU Public License. No warranty. No Support
+# For question/suggestions/bugs mail: michael.brookhuis@suse.com
 #
 # Version: 2020-06-29
 #
@@ -28,6 +29,7 @@ This script will perform a complete system maintenance
 import argparse
 import subprocess
 import time
+import xmlrpc.client
 from argparse import RawTextHelpFormatter
 
 import smtools
@@ -58,7 +60,6 @@ def group_update_server(args):
             time.sleep(smtools.CONFIGSM['maintenance']['wait_between_systems'])
     else:
         smt.log_warning("The given systemgroup '{}' has no systems.".format(args.group))
-
 
 def main():
     """

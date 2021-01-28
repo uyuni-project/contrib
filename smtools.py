@@ -316,13 +316,13 @@ class SMTools:
         Check progress of action
         """
         end_time = datetime.datetime.now() + datetime.timedelta(0, timeout)
-        in_progress = self.schedule_listinprogresssystems(action_id)
         try:
             wait_time = CONFIGSM['maintenance']['wait_between_events_check']
         except:
-            wait_time = 15
+            wait_time = 30
             self.minor_error("Please set value for maintenance | wait_between_events_check")
         time.sleep(wait_time)
+        in_progress = self.schedule_listinprogresssystems(action_id)
         while in_progress:
             self.log_info("Still Running")
             if datetime.datetime.now() > end_time:
@@ -336,7 +336,6 @@ class SMTools:
             return 0, 1, completed[0].get("message")
         else:
             return 1, 0, self.schedule_listfailedsystems(action_id)[0].get("message")
-
 
     def error_handling(self, err_type, message):
         if CONFIGSM['error_handling'][err_type].lower() == "error":
@@ -374,7 +373,6 @@ class SMTools:
             self.log_debug('  system_id:  {}'.format(id))
             self.log_debug("Error: \n{}".format(err))
             self.fatal_error('Unable to get hostname for server with ID {}.'.format(id))
-
 
     def system_getrelevanterrata(self):
         try:
@@ -1068,15 +1066,21 @@ class SMTools:
     """
 
     def schedule_listinprogresssystems(self, action_id):
-        try:
-            return self.client.schedule.listInProgressSystems(self.session, action_id)
-        except xmlrpc.client.Fault as err:
-            self.log_debug('api-call: schedule.listInProgressSystems')
-            self.log_debug('Value passed: ')
-            self.log_debug('  Event ID: {}'.format(action_id))
-            self.log_debug("Error: \n{}".format(err))
-            message = 'Unable to get events in progress for id {}. The error is: \n{}'.format(action_id, err)
-            self.fatal_error(message)
+        tries = 1
+        while tries < 4:
+            try:
+                return self.client.schedule.listInProgressSystems(self.session, action_id)
+            except Exception as err:
+                self.log_debug('api-call: schedule.listInProgressSystems')
+                self.log_debug('Value passed: ')
+                self.log_debug('  Event ID: {}'.format(action_id))
+                self.log_debug("Error: \n{}".format(err))
+                message = 'There has been an problem to get the event status, retry in 10 seconds. The error is: \n{}'.format(
+                    err)
+                self.log_warning(message)
+                tries += 1
+                time.sleep(10)
+        self.fatal_error("Unable to get status of event. Tried 3 times. Aborting.")
 
     def schedule_listcompletedsystems(self, action_id):
         try:

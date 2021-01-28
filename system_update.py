@@ -3,7 +3,7 @@
 # SystemUpdate
 #
 # (c) 2018 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting
+# GNU Public License. No warranty. No Support
 #
 # Version: 2020-06-29
 #
