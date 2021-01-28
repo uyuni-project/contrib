@@ -1,4 +1,0 @@
-suman:
-    hubmaster: <ISS Master server FQDN>
-    user: <SUSE Manager user with enough rights (at least org admin, preferable satelite admin)>
-    password: <password of above user>

@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 #
 # (c) 2020 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting)
+# GNU Public License. No warranty. No Support 
 #
-# Version: 2020-12-01
+# Version: 2021-01-28
 #
 # Created by: SUSE Michael Brookhuis,
 #
@@ -16,6 +16,7 @@
 #
 # Releases:
 # 2020-12-01 M.Brookhuis - initial release.
+# 2021-01-28 M.Brookhuis - Making ready for uyuni
 #
 
 import os
@@ -26,16 +27,16 @@ import socket
 import yaml
 import logging
 
-if not os.path.isfile(os.path.dirname(__file__) + "/sumahub.yaml"):
-    print("ERROR: sumahub.yaml doesn't exist. Please create file")
+if not os.path.isfile(os.path.dirname(__file__) + "/uyunihub.yaml"):
+    print("ERROR: uyunihub.yaml doesn't exist. Please create file")
     sys.exit(1)
 else:
-    with open(os.path.dirname(__file__) + '/sumahub.yaml') as h_cfg:
-        sumahub = yaml.Loader(h_cfg).get_single_data()
+    with open(os.path.dirname(__file__) + '/uyunihub.yaml') as h_cfg:
+        uyunihub = yaml.Loader(h_cfg).get_single_data()
 
-if not os.path.exists("/var/log/rhn/sumahub"):
-    os.makedirs("/var/log/rhn/sumahub")
-log_name = "/var/log/rhn/sumahub/sync_software.log"
+if not os.path.exists("/var/log/rhn/uyunihub"):
+    os.makedirs("/var/log/rhn/uyunihub")
+log_name = "/var/log/rhn/uyunihub/sync_software.log"
 
 formatter = logging.Formatter('%(asctime)s |  %(levelname)s | %(message)s', '%d-%m-%Y %H:%M:%S')
 fh = logging.FileHandler(log_name, 'a')
@@ -95,7 +96,7 @@ def get_needed_base_channels(hub_slave, m_client, m_session):
         all_channels = m_client.channel.listSoftwareChannels(m_session)
     except xmlrpc.client.Fault as err:
         log.fatal("Unable to connect SUSE Manager {} to login to get a list of all software channels".format(
-            sumahub['suman']['hubmaster']))
+            uyunihub['server']['hubmaster']))
         log.fatal("Error:\n{}".format(err))
         sys.exit(1)
     abcl = []
@@ -105,10 +106,10 @@ def get_needed_base_channels(hub_slave, m_client, m_session):
     # defined basechannels
     needed = []
     try:
-        for channel in sumahub['all']['basechannels']:
+        for channel in uyunihub['all']['basechannels']:
             needed.append(channel)
         try:
-            for channel in sumahub[hub_slave]['basechannels']:
+            for channel in uyunihub[hub_slave]['basechannels']:
                 needed.append(channel)
         except:
             log.info("no specific channels for this hub slave")
@@ -116,12 +117,12 @@ def get_needed_base_channels(hub_slave, m_client, m_session):
         log.info("no general channels defined")
     # defined projects
     try:
-        for project in sumahub['all']['projects']:
+        for project in uyunihub['all']['projects']:
             for channel in abcl:
                 if channel.startswith(project):
                     needed.append(channel)
         try:
-            for project in sumahub[hub_slave]['projects']:
+            for project in uyunihub[hub_slave]['projects']:
                 for channel in abcl:
                     if channel.startswith(project):
                         needed.append(channel)
@@ -140,12 +141,12 @@ def main():
     hub_slave = socket.getfqdn()
     log.info("start")
     manager_url_slave = "http://{}/rpc/api".format(hub_slave)
-    manager_url_master = "http://{}/rpc/api".format(sumahub['suman']['hubmaster'])
+    manager_url_master = "http://{}/rpc/api".format(uyunihub['server']['hubmaster'])
 
     try:
         m_client = xmlrpc.client.Server(manager_url_master)
     except xmlrpc.client.Fault as err:
-        log.fatal("Unable to login to SUSE Manager server {}".format(sumahub['suman']['hubmaster']))
+        log.fatal("Unable to login to SUSE Manager server {}".format(uyunihub['server']['hubmaster']))
         log.fatal("Error:\n{}".format(err))
         sys.exit(1)
     try:
@@ -155,13 +156,13 @@ def main():
         log.fatal("Error:\n{}".format(err))
         sys.exit(1)
     try:
-        m_session = m_client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
+        m_session = m_client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
     except xmlrpc.client.Fault as err:
-        log.fatal("Unable to login to SUSE Manager server {}".format(sumahub['suman']['hubmaster']))
+        log.fatal("Unable to login to SUSE Manager server {}".format(uyunihub['server']['hubmaster']))
         log.fatal("Error:\n{}".format(err))
         sys.exit(1)
     try:
-        s_session = s_client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
+        s_session = s_client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
     except xmlrpc.client.Fault as err:
         log.fatal("Unable to login to SUSE Manager server {}".format(hub_slave))
         log.fatal("Error:\n{}".format(err))

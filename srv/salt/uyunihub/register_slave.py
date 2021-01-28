@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 #
 # (c) 2020 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting)
+# GNU Public License. No warranty. No Support 
 #
-# Version: 2020-12-01
+# Version: 2021-01-28
 #
 # Created by: SUSE Michael Brookhuis,
 #
@@ -11,6 +11,8 @@
 #
 # Releases:
 # 2020-12-01 M.Brookhuis - initial release.
+# 2021-01-28 M.Brookhuis - Making ready for uyuni
+
 
 import os
 import sys
@@ -19,9 +21,9 @@ import yaml
 import socket
 import logging
 
-if not os.path.exists("/var/log/rhn/sumahub"):
-    os.makedirs("/var/log/rhn/sumahub")
-log_name = "/var/log/rhn/sumahub/register_slave.log"
+if not os.path.exists("/var/log/rhn/uyunihub"):
+    os.makedirs("/var/log/rhn/uyunihub")
+log_name = "/var/log/rhn/uyunihub/register_slave.log"
 
 formatter = logging.Formatter('%(asctime)s |  %(levelname)s | %(message)s', '%d-%m-%Y %H:%M:%S')
 fh = logging.FileHandler(log_name, 'a')
@@ -36,7 +38,6 @@ log.addHandler(console)
 log.addHandler(fh)
 
 
-
 def load_yaml(stream):
     """
     Load YAML data.
@@ -48,12 +49,12 @@ def load_yaml(stream):
         loader.dispose()
 
 
-if not os.path.isfile(os.path.dirname(__file__) + "/sumahub.yaml"):
-    log.error("ERROR: sumahub.yaml doesn't exist. Please create file")
+if not os.path.isfile(os.path.dirname(__file__) + "/uyunihub.yaml"):
+    log.error("ERROR: uyunihub.yaml doesn't exist. Please create file")
     sys.exit(1)
 else:
-    with open(os.path.dirname(__file__) + '/sumahub.yaml') as h_cfg:
-        sumahub = load_yaml(h_cfg)
+    with open(os.path.dirname(__file__) + '/uyunihub.yaml') as h_cfg:
+        uyunihub = load_yaml(h_cfg)
 
 if len(sys.argv) != 1:
     log.error("Usage: register_master.py")
@@ -61,9 +62,9 @@ if len(sys.argv) != 1:
 
 hub_slave = socket.getfqdn()
 
-manager_url = "http://{}/rpc/api".format(sumahub['suman']['hubmaster'])
+manager_url = "http://{}/rpc/api".format(uyunihub['server']['hubmaster'])
 client = xmlrpc.client.Server(manager_url)
-session_key = client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
+session_key = client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
 
 try:
     previous_slave = client.sync.slave.getSlaveByName(session_key, hub_slave)
@@ -88,16 +89,16 @@ client.auth.logout(session_key)
 
 manager_url = "http://{}/rpc/api".format(hub_slave)
 client = xmlrpc.client.Server(manager_url)
-session_key = client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
+session_key = client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
 
 try:
-    previous_master = client.sync.master.getMasterByLabel(session_key, sumahub['suman']['hubmaster'])
+    previous_master = client.sync.master.getMasterByLabel(session_key, uyunihub['server']['hubmaster'])
     client.sync.master.delete(session_key, previous_master["id"])
     log.info("Pre-existing Master deleted.")
 except:
     pass
 
-master = client.sync.master.create(session_key, sumahub['suman']['hubmaster'])
+master = client.sync.master.create(session_key, uyunihub['server']['hubmaster'])
 
 log.info("Master added to this Slave.")
 

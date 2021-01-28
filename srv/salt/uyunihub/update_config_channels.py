@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 #
 # (c) 2020 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting)
+# GNU Public License. No warranty. No Support 
 #
-# Version: 2020-12-01
+# Version: 2021-01-28
 #
 # Created by: SUSE Michael Brookhuis,
 #
@@ -11,6 +11,7 @@
 #
 # Releases:
 # 2020-12-01 M.Brookhuis - initial release.
+# 2021-01-28 M.Brookhuis - Making ready for uyuni
 #
 #
 
@@ -23,16 +24,16 @@ import xmlrpc.client
 
 import yaml
 
-if not os.path.isfile(os.path.dirname(__file__) + "/sumahub.yaml"):
-    print("ERROR: sumahub.yaml doesn't exist. Please create file")
+if not os.path.isfile(os.path.dirname(__file__) + "/uyunihub.yaml"):
+    print("ERROR: uyunihub.yaml doesn't exist. Please create file")
     sys.exit(1)
 else:
-    with open(os.path.dirname(__file__) + '/sumahub.yaml') as h_cfg:
-        sumahub = yaml.Loader(h_cfg).get_single_data()
+    with open(os.path.dirname(__file__) + '/uyunihub.yaml') as h_cfg:
+        uyunihub = yaml.Loader(h_cfg).get_single_data()
 
-if not os.path.exists("/var/log/rhn/sumahub"):
-    os.makedirs("/var/log/rhn/sumahub")
-log_name = "/var/log/rhn/sumahub/update_config_channels.log"
+if not os.path.exists("/var/log/rhn/uyunihub"):
+    os.makedirs("/var/log/rhn/uyunihub")
+log_name = "/var/log/rhn/uyunihub/update_config_channels.log"
 
 formatter = logging.Formatter('%(asctime)s |  %(levelname)s | %(message)s', '%d-%m-%Y %H:%M:%S')
 fh = logging.FileHandler(log_name, 'a')
@@ -49,7 +50,7 @@ log.addHandler(fh)
 
 def do_update(channel_type, slave_configs, master_configs, m_client, m_session, s_client, s_session):
     try:
-        for channel in sumahub[channel_type]['configchannels']:
+        for channel in uyunihub[channel_type]['configchannels']:
             found = False
             for config in slave_configs:
                 if channel == config.get('label'):
@@ -218,12 +219,12 @@ def main():
     hub_slave = socket.getfqdn()
 
     manager_url_slave = "http://{}/rpc/api".format(hub_slave)
-    manager_url_master = "http://{}/rpc/api".format(sumahub['suman']['hubmaster'])
+    manager_url_master = "http://{}/rpc/api".format(uyunihub['server']['hubmaster'])
 
     try:
         m_client = xmlrpc.client.Server(manager_url_master)
     except xmlrpc.client.Fault as err:
-        log.fatal("Unable to login to SUSE Manager server {}".format(sumahub['suman']['hubmaster']))
+        log.fatal("Unable to login to SUSE Manager server {}".format(uyunihub['server']['hubmaster']))
         log.fatal("Error:\n{}".format(err))
         sys.exit(1)
     try:
@@ -233,13 +234,13 @@ def main():
         log.fatal("Error:\n{}".format(err))
         sys.exit(1)
     try:
-        m_session = m_client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
+        m_session = m_client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
     except xmlrpc.client.Fault as err:
-        log.fatal("Unable to login to SUSE Manager server {}".format(sumahub['suman']['hubmaster']))
+        log.fatal("Unable to login to SUSE Manager server {}".format(uyunihub['server']['hubmaster']))
         log.fatal("Error:\n{}".format(err))
         sys.exit(1)
     try:
-        s_session = s_client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
+        s_session = s_client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
     except xmlrpc.client.Fault as err:
         log.fatal("Unable to login to SUSE Manager server {}".format(hub_slave))
         log.fatal("Error:\n{}".format(err))

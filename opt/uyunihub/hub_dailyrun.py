@@ -1,18 +1,19 @@
 #!/usr/bin/python3
 #
 # (c) 2020 SUSE Linux GmbH, Germany.
-# GNU Public License. No warranty. No Support (only from SUSE Consulting)
+# GNU Public License. No warranty. No Support
 #
-# Version: 2020-12-01
+# Version: 2021-01-28
 #
 # Created by: SUSE Michael Brookhuis,
 #
 # Description:
 # daily run to create:
-#    - /srv/formula_metadata/sumahub/form.yml
+#    - /srv/formula_metadata/uyunihub/form.yml
 #
 # Releases:
 # 2020-12-01 M.Brookhuis - initial release.
+# 2021-01-28 M.Brookhuis - Making ready for uyuni
 #
 #
 
@@ -24,9 +25,9 @@ from shutil import copyfile
 import yaml
 import logging
 
-if not os.path.exists("/var/log/rhn/sumahub"):
-    os.makedirs("/var/log/rhn/sumahub")
-log_name = "/var/log/rhn/sumahub/hub_dailyrun.log"
+if not os.path.exists("/var/log/rhn/uyunihub"):
+    os.makedirs("/var/log/rhn/uyunihub")
+log_name = "/var/log/rhn/uyunihub/hub_dailyrun.log"
 
 formatter = logging.Formatter('%(asctime)s |  %(levelname)s | %(message)s', '%d-%m-%Y %H:%M:%S')
 fh = logging.FileHandler(log_name, 'a')
@@ -46,12 +47,12 @@ if not os.path.isfile(os.path.dirname(__file__) + "/smconfig.yaml"):
     sys.exit(1)
 else:
     with open(os.path.dirname(__file__) + '/smconfig.yaml') as h_cfg:
-        sumahub = yaml.Loader(h_cfg).get_single_data()
+        uyunihub = yaml.Loader(h_cfg).get_single_data()
 
 
 def write_form_yml(clm_projects, base_channels, slaves, config_channels):
-    src = "/srv/formula_metadata/sumahub/form.yml"
-    dst = "/srv/formula_metadata/sumahub/form.old"
+    src = "/srv/formula_metadata/uyunihub/form.yml"
+    dst = "/srv/formula_metadata/uyunihub/form.old"
     copyfile(src, dst)
     f = open(src, "w")
     f.write('''
@@ -249,8 +250,8 @@ def get_slaves_systemgroup(session, client, systemgroup):
 
 
 def main():
-    client = xmlrpc.client.Server("http://{}/rpc/api".format(sumahub['suman']['hubmaster']))
-    session_key = client.auth.login(sumahub['suman']['user'], sumahub['suman']['password'])
+    client = xmlrpc.client.Server("http://{}/rpc/api".format(uyunihub['server']['hubmaster']))
+    session_key = client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
     if len(sys.argv) == 1:
         slaves = get_slaves_systemgroup(session_key, client, sys.argv[1])
     elif len(sys.argv) > 1:
