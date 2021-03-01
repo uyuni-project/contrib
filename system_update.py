@@ -33,6 +33,7 @@ import os
 import xmlrpc.client
 import subprocess
 import smtools
+import time
 
 __smt = None
 
@@ -145,6 +146,9 @@ def do_spmigrate(new_basechannel, no_reboot):
         smt.log_error("For the system {} no higher SupportPack is available. Please check in SUSE Manager GUI!!".format(smt.hostname))
     sp_old = "sp" + str(old_basechannel.get('label').split("sp")[1][:1])
     sp_new = "sp" + str(new_basechannel.split("sp")[1][:1])
+    smt.log_debug("sp_old: {}".format(sp_old))
+    smt.log_debug("sp_new: {}".format(sp_new))
+    smt.log_debug("current child channels:".format(smt.system_listsubscribedchildchannels()))
     if not smt.channel_software_getdetails(new_basechannel):
         smt.log_info("There is a newer SP available, but that has not been setup for the stage the server is in")
         return
@@ -168,6 +172,7 @@ def do_spmigrate(new_basechannel, no_reboot):
             break
     result_spmig = False
     if smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.now(), "SupportPack Migration dry run"):
+        time.sleep(20)
         result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.now(), "SupportPack Migration")
     if result_spmig and not no_reboot:
         smt.log_info("Support Pack migration completed successful, rebooting server {}".format(smt.hostname))
@@ -231,17 +236,17 @@ def check_for_sp_migration():
                         if not new_base_channel:
                             smt.log_info("Given SP Migration path is not available. There are no channels available.")
                             return False, ""
-    elif smtools.CONFIGSM['maintenance']['sp_migration']:
-        if "11-" in current_bc:
-            current_version = "sles11-"
-        elif "12-" in current_bc:
-            current_version = "sles12-"
-        elif "15-" in current_bc:
-            current_version = "sles15-"
-        current_version += current_sp
+    if smtools.CONFIGSM['maintenance']['sp_migration']:
+        #if "11-" in current_bc:
+        #    current_version = "sles11-"
+        #elif "12-" in current_bc:
+        #    current_version = "sles12-"
+        #elif "15-" in current_bc:
+        #    current_version = "sles15-"
+        #current_version += current_sp
         for key, value in smtools.CONFIGSM['maintenance']['sp_migration'].items():
-            if key == current_version and not server_is_exception(value):
-                return True, current_bc.replace(current_sp, value.split("-")[1])
+            if key == current_bc and not server_is_exception(value):
+                return True, value
     return False, ""
 
 

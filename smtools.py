@@ -637,6 +637,7 @@ class SMTools:
     def system_schedulespmigration(self, spident, basechannel, childchannels, dryrun, date, action):
         self.log_info("{} running for system {}".format(action, self.hostname))
         self.log_info("New basechannel will be: {}".format(basechannel))
+        self.log_info("New childchannes will be: {}".format(childchannels))
         try:
             schedule_id = self.client.system.scheduleSPMigration(self.session, self.systemid, spident, basechannel,
                                                                  childchannels, dryrun, date)
