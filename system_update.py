@@ -157,8 +157,10 @@ def do_spmigrate(new_basechannel, no_reboot):
         temp_child_channels = []
         for child_channel in new_child_channels:
             for project, new_pr in smtools.CONFIGSM['maintenance']['sp_migration_project'].items():
-                if project == child_channel.split("-")[0]:
+                if project in child_channel:
                     temp_child_channels.append(child_channel.replace(project, new_pr))
+                elif new_pr in child_channel:
+                    temp_child_channels.append(child_channel)
         new_child_channels = temp_child_channels
     all_child_channels = [c.get('label') for c in smt.channel_software_listchildren(new_basechannel)]
     for channel in new_child_channels:
@@ -171,16 +173,19 @@ def do_spmigrate(new_basechannel, no_reboot):
             spident = migration_target['ident']
             break
     result_spmig = False
-    if smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.now(), "SupportPack Migration dry run"):
-        time.sleep(20)
-        result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.now(), "SupportPack Migration")
-    if result_spmig and not no_reboot:
-        smt.log_info("Support Pack migration completed successful, rebooting server {}".format(smt.hostname))
-        smt.system_schedulereboot(datetime.datetime.now())
-    elif result_spmig and no_reboot:
-        smt.log_info("Support Pack migration completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(smt.hostname))
-    smt.system_schedulepackagerefresh(datetime.datetime.now())
-    smt.system_schedulehardwarerefresh(datetime.datetime.now())
+    if spident:
+        if smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.now(), "SupportPack Migration dry run"):
+            time.sleep(20)
+            result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.now(), "SupportPack Migration")
+        if result_spmig and not no_reboot:
+            smt.log_info("Support Pack migration completed successful, rebooting server {}".format(smt.hostname))
+            smt.system_schedulereboot(datetime.datetime.now())
+        elif result_spmig and no_reboot:
+            smt.log_info("Support Pack migration completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(smt.hostname))
+        smt.system_schedulepackagerefresh(datetime.datetime.now())
+        smt.system_schedulehardwarerefresh(datetime.datetime.now())
+    else:
+        smt.log_error("SP Migration failed. No SP update available")
 
 
 def check_channel(channel, channel_all):
@@ -202,6 +207,28 @@ def check_spmigration_available():
         return True, migration_targets
     else:
         return False, migration_targets
+
+def remove_ltss():
+    child_channels = smt.system_listsubscribedchildchannels()
+    new_child_channels = []
+    for child_channel in child_channels:
+        if "ltss" in child_channel.get('label'):
+            continue
+        else:
+            new_child_channels.append(child_channel.get('label'))
+    smt.system_schedulechangechannels(smt.system_getsubscribedbasechannel().get('label'), new_child_channels, datetime.datetime.now())
+    installed_packages = smt.system_listinstalledpackages()
+    remove_packages = []
+    for package in installed_packages:
+        if 'ltss' in package.get('name'):
+            remove_packages.append(package.get('name'))
+    script = "#!/bin/bash\nzypper -n rm "
+    if remove_packages:
+        for x in remove_packages:
+            script += "{} ".format(x)
+        smt.system_schedulescriptrun(script, 60, datetime.datetime.now())
+        smt.system_schedulepackagerefresh(datetime.datetime.now())
+    return
 
 
 def check_for_sp_migration():
@@ -226,12 +253,13 @@ def check_for_sp_migration():
             if project_environments:
                 for env in smt.contentmanagement_listprojectenvironment(project, True):
                     calc_current_bc = project + "-" + env['label']
-                    if calc_current_bc in current_bc.split('sp')[0]:
-                        part_new_bc = current_bc.split('sp')[0].replace(project, new_pr)
+                    if calc_current_bc in current_bc:
+                        part_new_bc = current_bc.replace(project, new_pr)
                         new_base_channel = None
                         for bc in all_bc:
                             if part_new_bc in bc:
                                 new_base_channel = bc
+                                remove_ltss()
                                 return True, new_base_channel
                         if not new_base_channel:
                             smt.log_info("Given SP Migration path is not available. There are no channels available.")

@@ -216,7 +216,7 @@ class SMTools:
             if CONFIGSM['smtp']['sendmail']:
                 self.send_mail()
             if return_code == 0:
-                sys.exit(1)
+                sys.exit(0)
         sys.exit(return_code)
 
     def suman_login(self):
@@ -404,6 +404,18 @@ class SMTools:
             self.log_debug("Error: \n{}".format(err))
             self.fatal_error(("Unable to receive list of inactive systems. Error: \n{}".format(err)))
 
+    def system_listinstalledpackages(self):
+        try:
+            return self.client.system.listInstalledPackages(self.session, self.systemid)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.listInstalledPackages')
+            self.log_debug('Value passed: ')
+            self.log_debug('  systemid:    {}'.format(self.systemid))
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error(("Unable to receive list of installed packages. Error: \n{}".format(err)))
+
+
+
     def system_listmigrationtargets(self):
         try:
             return self.client.system.listMigrationTargets(self.session, self.systemid)
@@ -513,6 +525,28 @@ class SMTools:
             self.error_handling('configupdate', message)
             return False
 
+    def system_schedulechangechannels(self, basechannel, childchannels, date):
+        self.log_info("Scheduling channel changes")
+        try:
+            schedule_id = self.client.system.scheduleChangeChannels(self.session, self.systemid, basechannel, childchannels, date)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.scheduleChangeChannels')
+            self.log_debug('Value passed: ')
+            self.log_debug('  system_id:     {}'.format(self.systemid))
+            self.log_debug('  basechannel:   {}'.format(basechannel))
+            self.log_debug('  childchannels: {}'.format(childchannels))
+            self.log_debug('  date:          {}'.format(date))
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error('Unable to schedule hardware refresh for server {}.'.format(self.hostname))
+        timeout = CONFIGSM['suman']['timeout']
+        (result_failed, result_completed, result_message) = self.check_progress(schedule_id, timeout, "Change channels")
+        if result_completed == 1:
+            self.log_info("Channgel change completed successful.")
+        else:
+            self.minor_error(
+                "Channel Change failed on server {}.\n\nThe error messages is:\n{}".format(self.hostname, result_message))
+
+
     def system_schedulehardwarerefresh(self, date, nowait=False):
         self.log_info("Running Hardware refresh")
         try:
@@ -605,7 +639,7 @@ class SMTools:
             schedule_id = self.client.system.scheduleScriptRun(self.session, self.systemid, "root", "root", timeout,
                                                                script, date)
         except xmlrpc.client.Fault as err:
-            self.log_debug('api-call: system.scheduleApplyHighstate')
+            self.log_debug('api-call: system.scheduleScriptRun')
             self.log_debug('Value passed: ')
             self.log_debug('  system_id:      {}'.format(self.systemid))
             self.log_debug('  User:           root')
@@ -640,7 +674,7 @@ class SMTools:
         self.log_info("New childchannes will be: {}".format(childchannels))
         try:
             schedule_id = self.client.system.scheduleSPMigration(self.session, self.systemid, spident, basechannel,
-                                                                 childchannels, dryrun, date)
+                                                                 childchannels, dryrun, True, date)
         except xmlrpc.client.Fault as err:
             self.log_debug('api-call: system.scheduleSPMigration')
             self.log_debug('Value passed: ')
