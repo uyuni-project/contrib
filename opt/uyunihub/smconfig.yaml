@@ -1,0 +1,4 @@
+server:
+    hubmaster: <hubmaster server> 
+    user: <admin user>
+    password: <password>
