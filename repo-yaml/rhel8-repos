@@ -1,0 +1,353 @@
+$releasever
+You can use this variable to reference the release version of Red Hat Enterprise Linux. Yum obtains the value of $releasever from the distroverpkg=value line in the /etc/yum.conf configuration file. If there is no such line in /etc/yum.conf, then yum infers the correct value by deriving the version number from the redhat-release-server package. The value of $releasever typically consists of the major release number and the variant of Red Hat Enterprise Linux, for example 6Client, or 6Server.
+
+$arch
+You can use this variable to refer to the system's CPU architecture as returned when calling Python's os.uname() function. Valid values for $arch include i686 and x86_64.
+
+$basearch
+You can use $basearch to reference the base architecture of the system. For example, i686 machines have a base architecture of i386, and AMD64 and Intel 64 machines have a base architecture of x86_64.
+
+
+
++----------------------------------------------------------+
+    Available Repositories in /etc/yum.repos.d/redhat.repo
++----------------------------------------------------------+
+Repo ID:   rhel-atomic-7-cdk-3.0-source-rpms
+Repo Name: Red Hat Container Development Kit 3.0 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.0/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-resilientstorage-source-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Resilient Storage (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/resilientstorage/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-2.3-source-rpms
+Repo Name: Red Hat Container Development Kit 2.3 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/2.3/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-rt-source-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Real Time (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/rt/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.2-source-rpms
+Repo Name: Red Hat Container Development Kit 3.2 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.2/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-rt-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Real Time (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/rt/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-resilientstorage-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Resilient Storage (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/resilientstorage/os
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.6-source-rpms
+Repo Name: Red Hat Container Development Kit 3.6 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.6/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.0-rpms
+Repo Name: Red Hat Container Development Kit 3.0 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.0/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-baseos-debug-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - BaseOS (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/baseos/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.8-rpms
+Repo Name: Red Hat Container Development Kit 3.8 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.8/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-baseos-source-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - BaseOS (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/baseos/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-highavailability-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - High Availability (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/highavailability/os
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-2.3-debug-rpms
+Repo Name: Red Hat Container Development Kit 2.3 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/2.3/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.4-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.4 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.4/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.1-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.1 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.1/debug
+Enabled:   0
+
+Repo ID:   codeready-builder-for-rhel-8-x86_64-source-rpms
+Repo Name: Red Hat CodeReady Linux Builder for RHEL 8 x86_64 (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/codeready-builder/source/SRPMS
+Enabled:   0
+
+Repo ID:   ansible-2-for-rhel-8-x86_64-rpms
+Repo Name: Red Hat Ansible Engine 2 for RHEL 8 x86_64 (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/ansible/2/os
+Enabled:   0
+
+Repo ID:   satellite-tools-6-beta-for-rhel-8-x86_64-source-rpms
+Repo Name: Red Hat Satellite Tools 6 Beta (for RHEL 8 x86_64) (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/beta/layered/rhel8/x86_64/sat-tools/6/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-supplementary-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Supplementary (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/supplementary/os
+Enabled:   1
+
+Repo ID:   satellite-tools-6.5-for-rhel-8-x86_64-debug-rpms
+Repo Name: Red Hat Satellite Tools 6.5 for RHEL 8 x86_64 (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/sat-tools/6.5/debug
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-sap-solutions-debug-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - SAP Solutions (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/sap-solutions/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.6-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.6 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.6/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.6-rpms
+Repo Name: Red Hat Container Development Kit 3.6 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.6/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-baseos-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - BaseOS (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/baseos/os
+Enabled:   1
+
+Repo ID:   rhel-atomic-7-cdk-3.5-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.5 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.5/debug
+Enabled:   0
+
+Repo ID:   codeready-builder-for-rhel-8-x86_64-debug-rpms
+Repo Name: Red Hat CodeReady Linux Builder for RHEL 8 x86_64 (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/codeready-builder/debug
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-appstream-debug-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - AppStream (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/appstream/debug
+Enabled:   0
+
+Repo ID:   ansible-2.8-for-rhel-8-x86_64-source-rpms
+Repo Name: Red Hat Ansible Engine 2.8 for RHEL 8 x86_64 (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/ansible/2.8/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.9-rpms
+Repo Name: Red Hat Container Development Kit 3.9 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.9/os
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-2.4-rpms
+Repo Name: Red Hat Container Development Kit 2.4 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/2.4/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-supplementary-debug-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Supplementary (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/supplementary/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.0-beta-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.0 Beta /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/beta/rhel/atomic/7/$basearch/cdk/3.0/debug
+Enabled:   0
+
+Repo ID:   ansible-2-for-rhel-8-x86_64-debug-rpms
+Repo Name: Red Hat Ansible Engine 2 for RHEL 8 x86_64 (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/ansible/2/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.4-rpms
+Repo Name: Red Hat Container Development Kit 3.4 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.4/os
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.0-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.0 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.0/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.7-rpms
+Repo Name: Red Hat Container Development Kit 3.7 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.7/os
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.2-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.2 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.2/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-2.3-rpms
+Repo Name: Red Hat Container Development Kit 2.3 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/2.3/os
+Enabled:   0
+
+Repo ID:   codeready-builder-for-rhel-8-x86_64-rpms
+Repo Name: Red Hat CodeReady Linux Builder for RHEL 8 x86_64 (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/codeready-builder/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-sap-solutions-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - SAP Solutions (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/sap-solutions/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-appstream-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - AppStream (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/appstream/os
+Enabled:   1
+
+Repo ID:   rhel-atomic-7-cdk-3.5-source-rpms
+Repo Name: Red Hat Container Development Kit 3.5 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.5/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-highavailability-debug-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - High Availability (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/highavailability/debug
+Enabled:   0
+
+Repo ID:   ansible-2-for-rhel-8-x86_64-source-rpms
+Repo Name: Red Hat Ansible Engine 2 for RHEL 8 x86_64 (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/ansible/2/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.3-rpms
+Repo Name: Red Hat Container Development Kit 3.3 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.3/os
+Enabled:   0
+
+Repo ID:   ansible-2.8-for-rhel-8-x86_64-debug-rpms
+Repo Name: Red Hat Ansible Engine 2.8 for RHEL 8 x86_64 (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/ansible/2.8/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.5-rpms
+Repo Name: Red Hat Container Development Kit 3.5 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.5/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-sap-solutions-source-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - SAP Solutions (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/sap-solutions/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.1-source-rpms
+Repo Name: Red Hat Container Development Kit 3.1 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.1/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-resilientstorage-debug-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Resilient Storage (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/resilientstorage/debug
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-highavailability-source-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - High Availability (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/highavailability/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-2.4-source-rpms
+Repo Name: Red Hat Container Development Kit 2.4 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/2.4/source/SRPMS
+Enabled:   0
+
+Repo ID:   satellite-tools-6-beta-for-rhel-8-x86_64-debug-rpms
+Repo Name: Red Hat Satellite Tools 6 Beta (for RHEL 8 x86_64) (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/beta/layered/rhel8/x86_64/sat-tools/6/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.3-source-rpms
+Repo Name: Red Hat Container Development Kit 3.3 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.3/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.0-beta-source-rpms
+Repo Name: Red Hat Container Development Kit 3.0 Beta /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/beta/rhel/atomic/7/$basearch/cdk/3.0/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-2.4-debug-rpms
+Repo Name: Red Hat Container Development Kit 2.4 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/2.4/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.3-debug-rpms
+Repo Name: Red Hat Container Development Kit 3.3 /(Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.3/debug
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.1-rpms
+Repo Name: Red Hat Container Development Kit 3.1 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.1/os
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-appstream-source-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - AppStream (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/appstream/source/SRPMS
+Enabled:   0
+
+Repo ID:   rhel-8-for-x86_64-rt-debug-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Real Time (Debug RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/rt/debug
+Enabled:   0
+
+Repo ID:   ansible-2.8-for-rhel-8-x86_64-rpms
+Repo Name: Red Hat Ansible Engine 2.8 for RHEL 8 x86_64 (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/ansible/2.8/os
+Enabled:   1
+
+Repo ID:   rhel-8-for-x86_64-supplementary-source-rpms
+Repo Name: Red Hat Enterprise Linux 8 for x86_64 - Supplementary (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel8/$releasever/x86_64/supplementary/source/SRPMS
+Enabled:   0
+
+Repo ID:   satellite-tools-6-beta-for-rhel-8-x86_64-rpms
+Repo Name: Red Hat Satellite Tools 6 Beta (for RHEL 8 x86_64) (RPMs)
+Repo URL:  https://cdn.redhat.com/content/beta/layered/rhel8/x86_64/sat-tools/6/os
+Enabled:   0
+
+Repo ID:   satellite-tools-6.5-for-rhel-8-x86_64-source-rpms
+Repo Name: Red Hat Satellite Tools 6.5 for RHEL 8 x86_64 (Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/sat-tools/6.5/source/SRPMS
+Enabled:   0
+
+Repo ID:   satellite-tools-6.5-for-rhel-8-x86_64-rpms
+Repo Name: Red Hat Satellite Tools 6.5 for RHEL 8 x86_64 (RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/layered/rhel8/x86_64/sat-tools/6.5/os
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.2-rpms
+Repo Name: Red Hat Container Development Kit 3.2 /(RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.2/os
+Enabled:   0
+
+Repo ID:   rhel-atomic-7-cdk-3.4-source-rpms
+Repo Name: Red Hat Container Development Kit 3.4 /(Source RPMs)
+Repo URL:  https://cdn.redhat.com/content/dist/rhel/atomic/7/7Server/$basearch/cdk/3.4/source/SRPMS
+Enabled:   0

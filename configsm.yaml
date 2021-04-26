@@ -1,0 +1,55 @@
+suman:
+    server: <SUSE Manager Server FQDN>
+    user: <USER with enough righst>
+    password: <password of the above user>
+    timeout: 1200
+
+smtp:
+   # sendmail: True is a mail should be send for minor and major errors. False if no mail should be send     
+   sendmail: False
+   receivers:
+     - <who should receive the mail>
+   sender: <send>
+   server: 127.0.0.1
+
+dirs:
+   log_dir: /var/log/SUSE_Manager_tools
+   scripts_dir: /opt/susemanager
+   update_script_dir: /opt/susemanager/update_scripts
+
+loglevel:
+   # LOGLEVELS:
+   # DEBUG: info warning error debug
+   # INFO: info warning error
+   # WARNING: warning error
+   # ERROR: error
+   file: DEBUG
+   screen: INFO
+
+error_handling:
+  # fatal: report error, exit script
+  # error: report error, continue
+  # warning: report warning, continue
+   script: error
+   update: error
+   spmig: fatal
+   configupdate: error
+   reboot: fatal
+   timeout_passed: fatal
+
+
+maintenance:
+   wait_between_systems: 2
+   exclude_for_patch:
+      - lx0001
+      - lx0002
+   sp_migration_project:
+      sl123: sl125
+      sl124: sl125
+      sl122: sl125
+      sl150: sl151
+   sp_migration:
+      sles12-sp1: sles12-sp4
+   exception_sp:
+      sles12-sp4:
+         - lx0003

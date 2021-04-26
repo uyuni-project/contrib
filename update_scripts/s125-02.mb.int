@@ -1,0 +1,16 @@
+begin:
+  timeout: 600
+  commands:
+   - sleep 90
+   - cat /root/server-begin
+  state:
+
+end:
+  timeout: 60 
+  commands:
+   - "echo $(date) > /root/server-end"
+   - ls -ltr /root
+  state:
+   - server_end
+
+
