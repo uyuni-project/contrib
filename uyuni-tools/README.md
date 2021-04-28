@@ -1,10 +1,10 @@
-# SUSE-Manager-Tools version 2
+# Uyuni-Tools version 2
 
-This is the new version of the SUSE Manager Tools. The major changes are:
+This is the new version of the Uyuni Tools. The major changes are:
 - logging level can be set separately for screen and files.
 - for some of the major components in system_update.py it can be configured how the script should react. For example exit the script or only report an error and continue.
 - optimized code.
-- only use https as connection between the scripts and SUSE Manager Server.
+- only use https as connection between the scripts and Uyuni Server.
 
 The following scripts will not be longer part of the set. Please let me know if you want them back:
 - cve_report.py
@@ -17,7 +17,7 @@ The default location is /opt/susemanager.
 
 General configuration is done in configsm.yaml:
 - The file configsm.yaml should be in the same directory as the scripts. And before using check the file and correct the information.
-- Contains the login credentials and the SUSE Manager Server (which should be given in FQDN) 
+- Contains the login credentials and the Uyuni Server (which should be given in FQDN) 
 - Contains the location of the log and script directories
 - Should a mail being send in case of an error and to whom
 - Information needed for SP migration for system update
@@ -48,7 +48,7 @@ This script can be used to updated (merge the patches and packages that are avai
 This will clone the given basechannel and all its child channels from the channels they are cloned from. Or it will update the given environment in the given project.
 
 - system_rereg.py
-When a system needs to be moved from SUSE Manager Server to a SUSE Manager Proxy or from a SUSE Manager Proxy to another SUSE Manager Proxy this script can be used.
+When a system needs to be moved from Uyuni Server to a Uyuni Proxy or from a Uyuni Proxy to another Uyuni Proxy this script can be used.
 
 - system_update.py
 This script will can perform several tasks:
@@ -70,9 +70,9 @@ Known Issues:
 =============
 - During the execution a python dump is written telling something related to CONFIGSM, this will in general mean that your configsm.yaml is not correct. Please run update_configsm.sh. If you still have problems, compare the configsm.yaml part of this git with yours.
 - When you receive an error regarding the SSL certificate (for example: "ssl.CertificateError: hostname 'mbsuma4' doesn't match 'mbsuma4.mb.int'") there are 2 possible causes:
-* In configsm.yaml the option [suman][server] should contain the FQDN of the SUSE Manager Server.
-* The SUSE Manager Server certificate is not imported. Perform the following steps:
-  - copy from the SUSE Manager Server /srv/www/htdocs/pub/RHN-ORG-TRUSTED-SSL-CERT to /etc/pki/trust/anchors/ on the server you are running the scripts.
+* In configsm.yaml the option [suman][server] should contain the FQDN of the Uyuni Server.
+* The Uyuni Server certificate is not imported. Perform the following steps:
+  - copy from the Uyuni Server /srv/www/htdocs/pub/RHN-ORG-TRUSTED-SSL-CERT to /etc/pki/trust/anchors/ on the server you are running the scripts.
   - run the command (as root): update_ca_certificates
 
 How to use:
