@@ -18,6 +18,11 @@ In order to use the tools with your Uyuni installation, you can simply download 
 
 Your Uyuni installation should have all dependencies needed to run all the tools.
 
+# Contributions Welcome!
+
+We welcome pull requests that add new tools to this repository or improve exiting ones. Please make sure to include an [OSI-approved](https://opensource.org/licenses) open source license if you submit a new tool. If you don't know which one to pick, take a look at [choosealicense.com](https://choosealicense.com/). If you still don't know which one to use, we suggest the GNU General Publice LICENSE Version 2 (GPL-2.0).
+
 # LICENSE
 
-Everything here is lincensed unter GPLv2 
+The content of this repository is licensed under an [OSI-approved](https://opensource.org/licenses) open source license. Please see each directory's `LICENSE.txt` for its respective license.
+
