@@ -1,7 +1,14 @@
 #!/bin/bash
-# A script to purge old and orphaned packages from the database for all channels and then delete from disk to free space. Use at own risk. 
+# Scipt to remove old packages from database for all channels and remove from disk.
 #######
+# /root/.patchuser contains the auth details in this format:
+#[Spacewalk]
+#spw_server = fqdn-of-uyuni-server
+#spw_user   = username
+#spw_pass   = userpass
+#
 # Remove pkgs without a channel
 /root/spacewalk-remove-old-packages.py -c /root/.patchuser -w
 /root/spacewalk-remove-old-packages.py -c /root/.patchuser -A
 /usr/bin/spacewalk-data-fsck -r -S -C -O
+
