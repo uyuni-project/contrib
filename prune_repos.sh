@@ -1,5 +1,5 @@
 #!/bin/bash
-# Scipt to remove old packages from database for all channels and remove from disk.
+# Script to remove old packages from the database for all channels and remove from disk.
 #######
 # /root/.patchuser contains the auth details in this format:
 #[Spacewalk]
