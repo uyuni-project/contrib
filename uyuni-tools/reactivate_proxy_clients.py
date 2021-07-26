@@ -1,5 +1,19 @@
 #!/bin/python3
 
+"""
+This script reactivates all clients which uses specified proxy FQDN as salt master.
+
+Workflow:
+
+1) use salt grains targeting to get the list of salt client ids
+2) use XMLRPC API to generate reactivation for each salt client
+3) update susemanager.conf of the client to inject reactivation key
+4) restart salt minion
+
+Restart of salt minion will trigger automatic reactivation of the client system
+which will update client's connection path in the database.
+"""
+
 import argparse
 import getpass
 import salt.client
@@ -16,7 +30,7 @@ parser.add_argument("proxy_fqdn", help = "FQDN or proxy which clients are to be 
 
 args = parser.parse_args()
 
-MANAGER_URL = "http://{}/rpc/api".format(args.host)
+MANAGER_URL = "https://{}/rpc/api".format(args.host)
 
 if args.user is None:
     args.user = getpass.getpass("User for SUSE Manager API on {}: ".format(args.host))
@@ -28,10 +42,11 @@ if args.dryrun:
     print('INFO: running in DRYRUN mode. No changes will be done')
 
 clients = []
-nclients = 99999
+maxclients = sys.maxsize
+nclients = 0
 if args.limit is not None:
     print('INFO: limiting number of modified clients to {}'.format(args.limit))
-    nclients = int(args.limit)
+    maxclients = args.limit
 
 if __name__ == "__main__":
     suma_rpc = ServerProxy(MANAGER_URL)
@@ -42,8 +57,8 @@ if __name__ == "__main__":
     suma_salt = salt.client.LocalClient()
     res = suma_salt.cmd_iter("master:{}".format(args.proxy_fqdn), "grains.item", ["id"], tgt_type="grain", timeout = 2)
     for c in res:
-        nclients -= 1
-        if nclients < 0:
+        nclients += 1
+        if maxclients < nclients:
             break
 
         c_saltid = list(c.values())[0]["ret"]["id"]
