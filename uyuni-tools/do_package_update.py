@@ -141,11 +141,11 @@ def main():
         smt.fatal_error(perr)
     else:
         smt = smtools.SMTools(args.server.lower(), "do_package_update")
+        smt.suman_login()
         smt.set_hostname(args.server.lower())
     smt.log_info("######################################################")
     smt.log_info("Start")
     smt.log_info("######################################################")
-    smt.suman_login()
     do_package_update(smt.get_server_id())
     smt.close_program()
 
