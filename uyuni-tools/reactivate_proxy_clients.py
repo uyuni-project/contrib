@@ -23,17 +23,18 @@ from xmlrpc.client import ServerProxy
 parser = argparse.ArgumentParser(description = "Reactivate all online clients attached to the specified proxy (determined by salt clients 'master' grain)")
 parser.add_argument("--dryrun", default=False, action="store_true", help = "Show the actions, but do not do anything")
 parser.add_argument("--limit", default=None, help = "Limit the number of modified salt clients (default unlimited)", type=int)
-parser.add_argument("--host", help = "SUSE Manager hostname", default = "localhost")
+parser.add_argument("--host", help = "SUSE Manager hostname")
 parser.add_argument("--user", help = "SUSE Manager username for login. If not provided, will be asked for")
 parser.add_argument("--password", help = "SUSE Manager password for login. If not provided, will be asked for")
 parser.add_argument("proxy_fqdn", help = "FQDN or proxy which clients are to be reactivated")
 
 args = parser.parse_args()
 
-MANAGER_URL = "https://{}/rpc/api".format(args.host)
+if args.host is None:
+    args.host = input("Host for SUSE Manager: ")
 
 if args.user is None:
-    args.user = getpass.getpass("User for SUSE Manager API on {}: ".format(args.host))
+    args.user = input("User for SUSE Manager API on {}: ".format(args.host))
 
 if args.password is None:
     args.password = getpass.getpass("Password for SUSE Manager API user {} on {}: ".format(args.user, args.host))
@@ -41,19 +42,21 @@ if args.password is None:
 if args.dryrun:
     print('INFO: running in DRYRUN mode. No changes will be done')
 
-clients = []
 maxclients = sys.maxsize
-nclients = 0
 if args.limit is not None:
     print('INFO: limiting number of modified clients to {}'.format(args.limit))
     maxclients = args.limit
+
+MANAGER_URL = "https://{}/rpc/api".format(args.host)
 
 if __name__ == "__main__":
     suma_rpc = ServerProxy(MANAGER_URL)
     key = suma_rpc.auth.login(args.user, args.password)
 
-    client_mapping = suma_rpc.system.getMinionIdMap(key)
+    clients = []
+    nclients = 0
 
+    client_mapping = suma_rpc.system.getMinionIdMap(key)
     suma_salt = salt.client.LocalClient()
     res = suma_salt.cmd_iter("master:{}".format(args.proxy_fqdn), "grains.item", ["id"], tgt_type="grain", timeout = 2)
     for c in res:
