@@ -5,7 +5,7 @@ This script reactivates all clients which uses specified proxy FQDN as salt mast
 
 Workflow:
 
-1) use salt grains targeting to get the list of salt client ids
+1) use salt grains targeting to get the list of salt minion ids
 2) use XMLRPC API to generate reactivation for each salt client
 3) update susemanager.conf of the client to inject reactivation key
 4) restart salt minion
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     for c, r in clients:
         sed_cmd = "sed -i -e 's/^\(\s*\)susemanager:.*$/\\1susemanager:\\n\\1    management_key: {}/' /etc/salt/minion.d/susemanager.conf".format(r)
         if args.dryrun:
-            print('DRYRUN: suma_salt.cmd({}, "cmd.run", ["{}")'.format(c, sed_cmd))
+            print('DRYRUN: suma_salt.cmd({}, "cmd.run", ["{}"])'.format(c, sed_cmd))
             print('DRYRUN: suma_salt.cmd({}, "cmd.run_bg", ["sleep 2;service salt-minion restart"])'.format(c))
         else:
             suma_salt.cmd(c, "cmd.run", [sed_cmd])
