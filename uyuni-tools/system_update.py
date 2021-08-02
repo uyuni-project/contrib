@@ -167,6 +167,7 @@ def do_spmigrate(new_basechannel, no_reboot):
         if check_channel(channel, all_child_channels):
             checked_new_child_channels.append(channel)
     do_upgrade(False, False)
+    time.sleep(60)
     spident = None
     for migration_target in migration_targets:
         if sp_new.upper() in migration_target['friendly']:
@@ -254,7 +255,7 @@ def check_for_sp_migration():
                 for env in smt.contentmanagement_listprojectenvironment(project, True):
                     calc_current_bc = project + "-" + env['label']
                     if calc_current_bc in current_bc:
-                        part_new_bc = current_bc.replace(project, new_pr)
+                        part_new_bc = calc_current_bc.replace(project, new_pr)
                         new_base_channel = None
                         for bc in all_bc:
                             if part_new_bc in bc:
