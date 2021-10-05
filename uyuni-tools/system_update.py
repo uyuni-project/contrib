@@ -53,6 +53,7 @@ def do_update_minion(updateble_patches):
         smt.log_info('No update for salt-minion"')
         return
     smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "SALT minion update", "minor")
+    time.sleep(20)
     smt.system_schedulepackagerefresh(datetime.datetime.now())
     return
 
@@ -131,6 +132,7 @@ def do_upgrade(no_reboot, force_reboot):
         smt.log_debug("Option force_reboot given")
     if not no_reboot and reboot_needed_package and reboot_needed_errata:
         smt.system_schedulereboot(datetime.datetime.now())
+        time.sleep(30)
     smt.system_schedulehardwarerefresh(datetime.datetime.now(), True)
     return
 
