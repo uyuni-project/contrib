@@ -20,7 +20,7 @@
 # 2020-06-29 M.Brookhuis - Version 2.
 #                        - changed logging
 #                        - moved api calls to smtools.py
-#
+# 2022-05-05 M.Brookhuis - added request for disabling dry-run in SPMIG.
 #
 
 """
@@ -137,7 +137,7 @@ def do_upgrade(no_reboot, force_reboot):
     return
 
 
-def do_spmigrate(new_basechannel, no_reboot):
+def do_spmigrate(new_basechannel, no_reboot, no_dryrun):
     """
     Perform a sp migration for the given server
     """
@@ -177,7 +177,11 @@ def do_spmigrate(new_basechannel, no_reboot):
             break
     result_spmig = False
     if spident:
-        if smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.now(), "SupportPack Migration dry run"):
+        if no_dryrun:
+            dryrun_complete = True
+        else:
+            dryrun_complete = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.now(), "SupportPack Migration dry run")
+        if dryrun_complete:
             time.sleep(20)
             result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.now(), "SupportPack Migration")
         if result_spmig and not no_reboot:
@@ -185,6 +189,8 @@ def do_spmigrate(new_basechannel, no_reboot):
             smt.system_schedulereboot(datetime.datetime.now())
         elif result_spmig and no_reboot:
             smt.log_info("Support Pack migration completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(smt.hostname))
+        else:
+            smt.log_error("SP Migration failed. Please check logs.")
         smt.system_schedulepackagerefresh(datetime.datetime.now())
         smt.system_schedulehardwarerefresh(datetime.datetime.now())
     else:
@@ -240,7 +246,7 @@ def check_for_sp_migration():
     """
     current_version = None
     current_bc = smt.system_getsubscribedbasechannel().get('label')
-    if "sle" not in current_bc:
+    if "sle" not in current_bc or "opensuse" not in current_bc:
         smt.log_info("System is not running SLE. SP Migration not possible")
         return False, ""
     if "sp" not in current_bc:
@@ -383,7 +389,7 @@ def update_server(args):
     (do_spm, new_basechannel) = check_for_sp_migration()
     if do_spm:
         smt.log_info("Server {} will get a SupportPack Migration to {} ".format(args.server, new_basechannel))
-        do_spmigrate(new_basechannel, args.noreboot)
+        do_spmigrate(new_basechannel, args.noreboot, args.nodryrun)
     else:
         smt.log_info("Server {} will be upgraded with latest available patches".format(args.server))
         do_upgrade(args.noreboot, args.forcereboot)
@@ -420,6 +426,8 @@ def main():
         parser.add_argument('-s', '--server', help='name of the server to receive config update. Required')
         parser.add_argument("-n", "--noreboot", action="store_true", default=0,
                             help="Do not reboot server after patching or supportpack upgrade.")
+        parser.add_argument("-d", "-nodryrun", action="store_true", default=0,
+                            help="Do not run a dry run before performing a SP migration.")
         parser.add_argument("-f", "--forcereboot", action="store_true", default=0,
                             help="Force a reboot server after patching or supportpack upgrade.")
         parser.add_argument("-c", '--applyconfig', action="store_true", default=0,
