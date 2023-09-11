@@ -36,7 +36,7 @@ def login(user, password):
   data = {"login": user, "password": password}
   res = requests.post(MANAGER_URL + 'auth/login', json=data, verify=SSLVERIFY)
   if res.status_code != 200 or not res.json()['success']:
-    print(f"Failed to login with message: {res.json()['messages']}")
+    print(f"Failed to login with message: {res.json()}")
     exit(1)
   return res.cookies
 
