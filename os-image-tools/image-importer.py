@@ -143,8 +143,14 @@ def get_md5(path):
     if not os.path.isfile(path):
         return res
 
-    res['hash'] = md5(path).hexdigest()
-    res['size'] = os.stat(path).get('size')
+    with open(path, 'rb') as src:
+        hash_obj = md5()
+        # read the file in parts, not the entire file
+        for chunk in iter(lambda: src.read(65536), b""):
+            hash_obj.update(chunk)
+        res['hash'] = hash_obj.hexdigest()
+        res['size'] = os.stat(path).st_size
+
     return res
 
 def parse_kiwi_md5(path, compressed = False):
@@ -214,7 +220,11 @@ def image_details(dest, bundle_dest = None):
             'compressed_hash': get_md5(filepath).get('hash')
         })
 
-    res['image'].update(parse_kiwi_md5(os.path.join(dest, basename + '.md5'), compression is not None))
+    image_hash = parse_kiwi_md5(os.path.join(dest, basename + '.md5'), compression is not None)
+    if not image_hash:
+        image_hash = get_md5(filepath)
+
+    res['image'].update(image_hash)
 
     if bundle_dest is not None:
       res['bundles'] = inspect_bundles(bundle_dest, basename)
@@ -351,7 +361,6 @@ def prepare_pillars(images_details, hostname, org, revision):
 
     sync_details = {}
     image_data = images_details['image']
-    boot_data = images_details['boot_image']
     file_name = image_data['filename']
     name_version = f"{image_data['name']}-{image_data['version']}{revision}"
     name_arch_version = f"{image_data['name']}.{image_data['arch']}-{image_data['version']}{revision}"
@@ -389,6 +398,7 @@ def prepare_pillars(images_details, hostname, org, revision):
     }
 
     if image_data['type'] == 'pxe':
+      boot_data = images_details['boot_image']
       if images_details.get('bundles'):
          boot_sync = {}
       else:
