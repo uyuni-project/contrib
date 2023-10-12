@@ -393,6 +393,12 @@ def prepare_pillars(images_details, hostname, org, revision):
        'sync': sync_details,
     }
 
+    if image_data.get('compression'):
+        version_data[f"{image_data['version']}{revision}"].update({
+            'compressed': image_data['compression'],
+            'compressed_hash': image_data['compressed_hash']
+        })
+
     pillar_data['images'] = {
         image_data['name']:  version_data,
     }
