@@ -88,7 +88,7 @@ if __name__ == "__main__":
         clients.append((c_saltid, c_key))
 
     for c, r in clients:
-        sed_cmd = "sed -i -e 's/^\(\s*\)susemanager:.*$/\\1susemanager:\\n\\1    management_key: {}/' /etc/salt/minion.d/susemanager.conf".format(r)
+        sed_cmd = "sed -i -e 's/^\(\s*\)susemanager:.*$/\\1susemanager:\\n\\1    management_key: {}/' /etc/venv-salt-minion/minion.d/susemanager.conf".format(r)
         if args.dryrun:
             print('DRYRUN: suma_salt.cmd({}, "cmd.run", ["{}"])'.format(c, sed_cmd))
             print('DRYRUN: suma_salt.cmd({}, "cmd.run_bg", ["sleep 2;service salt-minion restart"])'.format(c))
