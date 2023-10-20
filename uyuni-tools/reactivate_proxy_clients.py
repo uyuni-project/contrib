@@ -66,9 +66,13 @@ if __name__ == "__main__":
         
         salt_ret = list(c.values())[0]["ret"]
         c_saltid = salt_ret["id"]
-        c_configpath = "/etc/venv-salt-minion/minion.d/susemanager.conf" \
-            if "venv" in salt_ret.get("saltpath", "") \
-            else "/etc/salt/minion.d/susemanager.conf"
+        c_configpath = "/etc/salt/minion.d/susemanager.conf"
+        c_service = "salt-minion"
+
+        # check if venv salt minion
+        if "venv" in salt_ret.get("saltpath", ""):
+            c_configpath = "/etc/venv-salt-minion/minion.d/susemanager.conf"
+            c_service = "venv-salt-minion"
 
         print('Processing salt client {}'.format(c_saltid))
         c_id = client_mapping.get(c_saltid)
@@ -90,16 +94,16 @@ if __name__ == "__main__":
             print('DRYRUN: suma_rpc.system.obtainReactivationKey(key, {})'.format(c_id))
         else:
             c_key = suma_rpc.system.obtainReactivationKey(key, c_id)
-        clients.append((c_saltid, c_configpath, c_key))
+        clients.append((c_saltid, c_configpath, c_key, c_service))
 
-    for c, p, r in clients:
+    for c, p, r, s in clients:
         sed_cmd = "sed -i -e 's/^\(\s*\)susemanager:.*$/\\1susemanager:\\n\\1    management_key: {}/' {}".format(r, p)
         if args.dryrun:
             print('DRYRUN: suma_salt.cmd({}, "cmd.run", ["{}"])'.format(c, sed_cmd))
-            print('DRYRUN: suma_salt.cmd({}, "cmd.run_bg", ["sleep 2;service salt-minion restart"])'.format(c))
+            print('DRYRUN: suma_salt.cmd({}, "cmd.run_bg", ["sleep 2;service {} restart"])'.format(c, s))
         else:
             suma_salt.cmd(c, "cmd.run", [sed_cmd])
-            print('Salt client {} reactivation key grain set, restarting salt-minion'.format(c))
-            suma_salt.cmd(c, "cmd.run_bg", ["sleep 2;service salt-minion restart"])
+            print('Salt client {} reactivation key grain set, restarting {}'.format(c, s))
+            suma_salt.cmd(c, "cmd.run_bg", ["sleep 2;service {} restart".format(s)])
 
     print("All done, wait until all salt clients reactivates and check proxy connections")
