@@ -20,6 +20,7 @@
 # 2020-06-29 M.Brookhuis - Version 2.
 #                        - changed logging
 #                        - moved api calls to smtools.py
+# 2022-06-14 M.Brookhuis - Added option to disable dryrun
 #
 
 """
@@ -54,6 +55,8 @@ def group_update_server(args):
                 program_call += " -n"
             if args.forcereboot:
                 program_call += " -f"
+            if args.nodryrun:
+                program_call += " -d"
             smt.log_info("Update started for {}".format(system.get('name')))
             smt.log_debug("Command issued: {}".format(program_call))
             subprocess.Popen(program_call, shell=True)
@@ -79,6 +82,8 @@ def main():
                         help="Do not reboot server after patching or supportpack upgrade.")
     parser.add_argument("-f", "--forcereboot", action="store_true", default=0,
                         help="Force a reboot server after patching or supportpack upgrade.")
+    parser.add_argument("-d", "--nodryrun", action="store_true", default=0,
+                        help="Do not run a dry run before performing a SP migration.")
     parser.add_argument('--version', action='version', version='%(prog)s 2.0.0, June 29, 2020')
     args = parser.parse_args()
     smt = smtools.SMTools("group_system_update")
