@@ -38,7 +38,7 @@ import shutil
 BASE_DIR = "/mnt"  # Define base directory where the exports will be.
 OUTPUT_DIR = os.path.join(BASE_DIR, "export/updates")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
-TODAY = datetime.date.TODAY()
+TODAY = datetime.date.today()
 TARGET_DATE = TODAY - datetime.timedelta(days=1)  # Define the number of days back for export, 1 day by default
 RSYNC_USER = "rsyncuser"  # Define rsync user
 RSYNC_GROUP = "users"     # Define rsync group
