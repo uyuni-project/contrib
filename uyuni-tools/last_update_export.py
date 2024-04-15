@@ -13,7 +13,7 @@ Instructions:
 2. This script must be run with root privileges to manage file permissions and perform system-level operations.
 3. Before running the script, update the `/root/.mgr-sync` configuration file with the correct manager login credentials using `mgr-sync -s refresh` to create the credentials file.
 4. Customize the directory path, by default `/mnt` was chosen but this could be any location you want, ensure the location has ample free space.
-5. Customize the 'rsync_user' and 'rsync_group' in the script to match the user and group names on your system.
+5. Customize the 'RSYNC_USER' and 'RSYNC_GROUP' in the script to match the user and group names on your system.
 6. Schedule this script using a cron job or another scheduler for daily execution.
 
 Intended Usage:
@@ -34,6 +34,15 @@ import socket
 import configparser
 import shutil
 
+# Configuration Variables
+BASE_DIR = "/mnt"  # Define base directory where the exports will be.
+OUTPUT_DIR = os.path.join(BASE_DIR, "export/updates")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+TODAY = datetime.date.TODAY()
+TARGET_DATE = TODAY - datetime.timedelta(days=1)  # Define the number of days back for export, 1 day by default
+RSYNC_USER = "rsyncuser"  # Define rsync user
+RSYNC_GROUP = "users"     # Define rsync group
+
 def setup_directories(base_path, output_path, log_path):
     if not os.path.exists(base_path):
         os.makedirs(base_path, exist_ok=True)
@@ -43,8 +52,8 @@ def setup_directories(base_path, output_path, log_path):
         shutil.rmtree(output_path)
     os.makedirs(output_path, exist_ok=True)
 
-def setup_logging(log_dir, today):
-    log_file_path = os.path.join(log_dir, f"{today}-daily_export.log")
+def setup_logging(LOG_DIR, TODAY):
+    log_file_path = os.path.join(LOG_DIR, f"{TODAY}-daily_export.log")
     return log_file_path
 
 def create_client():
@@ -52,26 +61,17 @@ def create_client():
     config = configparser.ConfigParser()
     with open(config_path, 'r') as f:
         config.read_string('[DEFAULT]\n' + f.read())
-    MANAGER_LOGIN = config.get('DEFAULT', 'mgrsync.user')
-    MANAGER_PASSWORD = config.get('DEFAULT', 'mgrsync.password')
-    SUMA_FQDN = socket.getfqdn()
-    MANAGER_URL = f"https://{SUMA_FQDN}/rpc/api"
+    manager_login = config.get('DEFAULT', 'mgrsync.user')
+    manager_password = config.get('DEFAULT', 'mgrsync.password')
+    suma_fqdn = socket.getfqdn()
+    manager_url = f"https://{suma_fqdn}/rpc/api"
     context = ssl.create_default_context()
-    client = ServerProxy(MANAGER_URL, context=context)
-    return client, client.auth.login(MANAGER_LOGIN, MANAGER_PASSWORD)
-
-# Configuration Variables
-base_dir = "/mnt"  # Define base directory where the exports will be.
-output_dir = os.path.join(base_dir, "export/updates")
-log_dir = os.path.join(base_dir, "logs")
-today = datetime.date.today()
-target_date = today - datetime.timedelta(days=1)  # Define the number of days back for export, 1 day by default
-rsync_user = "rsyncuser"  # Define rsync user
-rsync_group = "users"     # Define rsync group
+    client = ServerProxy(manager_url, context=context)
+    return client, client.auth.login(manager_login, manager_password)
 
 # Setup Directories and Logging
-setup_directories(base_dir, output_dir, log_dir)
-log_file_path = setup_logging(log_dir, today)
+setup_directories(BASE_DIR, OUTPUT_DIR, LOG_DIR)
+log_file_path = setup_logging(LOG_DIR, TODAY)
 
 # Create XML-RPC Client
 client, key = create_client()
@@ -82,14 +82,14 @@ for channel in channel_list:
     build_date, channel_label = client.channel.software.getChannelLastBuildById(key, channel["id"]).split()[0], channel["label"]
     build_date = datetime.datetime.strptime(build_date, "%Y-%m-%d").date()
 
-    if build_date in [today, target_date]:
-        channel_output_dir = os.path.join(output_dir, channel_label)
-        os.makedirs(channel_output_dir, exist_ok=True)
+    if build_date in [TODAY, TARGET_DATE]:
+        channel_OUTPUT_DIR = os.path.join(OUTPUT_DIR, channel_label)
+        os.makedirs(channel_OUTPUT_DIR, exist_ok=True)
         options_dict = {
-            "outputDir": channel_output_dir,
+            "outputDir": channel_OUTPUT_DIR,
             "orgLimit": "2",  # Define the default Organization, 2 by default assuming there is only 1, if multiple set this to the one you assign for exporting.
             "logLevel": "error",  # Set as 'error' by default but change to 'debug' for detailed logging
-            "packagesOnlyAfter": target_date.strftime('%Y-%m-%d')
+            "packagesOnlyAfter": TARGET_DATE.strftime('%Y-%m-%d')
         }
         options = ' '.join([f"--{opt}='{val}'" for opt, val in options_dict.items()])
         command = f"inter-server-sync export --channels='{channel_label}' {options}"
@@ -100,4 +100,4 @@ for channel in channel_list:
             log_file.write(completion_message)
 
 # Change ownership of the output directory
-subprocess.run(["chown", "-R", f"{rsync_user}:{rsync_group}", output_dir], check=True)
+subprocess.run(["chown", "-R", f"{RSYNC_USER}:{RSYNC_GROUP}", OUTPUT_DIR], check=True)
