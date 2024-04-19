@@ -82,7 +82,7 @@ for channel in channel_list:
     build_date, channel_label = client.channel.software.getChannelLastBuildById(key, channel["id"]).split()[0], channel["label"]
     build_date = datetime.datetime.strptime(build_date, "%Y-%m-%d").date()
 
-    if build_date in [TODAY, TARGET_DATE]:
+    if TARGET_DATE <= build_date <= TODAY:
         channel_OUTPUT_DIR = os.path.join(OUTPUT_DIR, channel_label)
         os.makedirs(channel_OUTPUT_DIR, exist_ok=True)
         options_dict = {
