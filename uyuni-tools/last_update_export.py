@@ -94,7 +94,7 @@ for channel in channel_list:
         options = ' '.join([f"--{opt}='{val}'" for opt, val in options_dict.items()])
         command = f"inter-server-sync export --channels='{channel_label}' {options}"
         with open(log_file_path, "a") as log_file:
-            subprocess.run(command, shell=True, stdout=log_file, stderr=subprocess.STDOUT, check=True)
+            subprocess.run(command, stdout=log_file, stderr=subprocess.STDOUT, check=True)
             current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
             completion_message = f"{current_time} Export for channel {channel_label} completed.\n"
             log_file.write(completion_message)
