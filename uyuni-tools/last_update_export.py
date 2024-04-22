@@ -1,26 +1,43 @@
 #!/usr/bin/env python3
+
 """
 Script Name: Last Update Export
 
 Description:
-This script automates the export of software channels using an XML-RPC client to interface with a server for use in Airgapped Environments or Disconnected SUMA.
-It is designed to operate on a scheduled basis (daily), removing the previous day's export data, and writing new export logs into designated directories.
-The concept behind the script is to use the API's to determine which channels have been updated within the defined dates, and export only those channels, as such, 
-this creates a more streamlined export/import for Disconnected or Airgapped systems.
+                This script automates the export of software channels using an XML-RPC
+                client to interface with a server for use in Airgapped Environments or
+                Disconnected SUMA.
+
+                It is designed to operate on a scheduled basis (daily), removing the
+                previous day's export data, and writing new export logs into designated
+                directories.
+
+                The concept behind the script is to use the API's to determine which
+                channels have been updated within the defined dates, and export only 
+                those channels, as such, this creates a more streamlined export/import
+                for Disconnected or Airgapped systems.
 
 Instructions:
-1. Ensure Python 3.x is installed on your system.
-2. This script must be run with root privileges to manage file permissions and perform system-level operations.
-3. Before running the script, update the `/root/.mgr-sync` configuration file with the correct manager login credentials using `mgr-sync -s refresh` to create the credentials file.
-4. Customize the directory path, by default `/mnt` was chosen but this could be any location you want, ensure the location has ample free space.
-5. Customize the 'RSYNC_USER' and 'RSYNC_GROUP' in the script to match the user and group names on your system.
-6. Schedule this script using a cron job or another scheduler for daily execution.
+                1. Ensure Python 3.x is installed on your system.
+                2. This script must be run with root privileges to manage file
+                   permissions and perform system-level operations.
+                3. Before running the script, update the `/root/.mgr-sync` configuration
+                   file with the correct manager login credentials using
+                   `mgr-sync -s refresh` to create the credentials file.
+                4. Customize the directory path, by default `/mnt` was chosen but this
+                   could be any location you want, ensure the location has ample free
+                   space.
+                5. Customize the 'RSYNC_USER' and 'RSYNC_GROUP' in the script to match
+                   the user and group names on your system.
+                6. Schedule this script using a cron job or another scheduler for daily 
+                   execution.
 
 Intended Usage:
-- Scheduled daily exports of software channel data.
-- Logging of export operations in '/mnt/logs'.
-- Exports are stored in '/mnt/export/updates'.
-- This script is intended for systems administrators managing software channel updates for Airgapped Environments.
+                - Scheduled daily exports of software channel data.
+                - Logging of export operations in '/mnt/logs'.
+                - Exports are stored in '/mnt/export/updates'.
+                - This script is intended for systems administrators managing software
+                  channel updates for Airgapped Environments.
 
 Ensure the server and paths are correctly configured and accessible before running the script.
 """
