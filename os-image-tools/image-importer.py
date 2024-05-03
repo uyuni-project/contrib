@@ -355,7 +355,7 @@ def inspect_bundles(dest, basename):
             res.append(res1)
     return res
 
-def prepare_pillars(images_details, hostname, org, revision):
+def prepare_pillars(images_details, hostname, org, revision, protocol):
     revision = f'-{revision}'
     pillar_data = {}
 
@@ -381,7 +381,7 @@ def prepare_pillars(images_details, hostname, org, revision):
 
     version_data = {}
     version_data[f"{image_data['version']}{revision}"] = {
-       'url': f"https://ftp/saltboot/{local_path}/{file_name}",
+       'url': f"{protocol}://ftp/saltboot/{local_path}/{file_name}",
        'arch': image_data['arch'],
        'boot_image': name_version,
        'filename': file_name,
@@ -391,6 +391,7 @@ def prepare_pillars(images_details, hostname, org, revision):
        'inactive': False,
        'type': image_data['type'],
        'sync': sync_details,
+       'name': image_data['name'],
     }
 
     if image_data.get('compression'):
@@ -528,6 +529,7 @@ if __name__ == "__main__":
   parser.add_argument('--no-move', help='Do not automatically move image files', action='store_true')
   parser.add_argument('--revision', default=1, help='Revision of the image build')
   parser.add_argument('--org-id', default=1, help='Organization ID')
+  parser.add_argument('--protocol', default='ftp', help='Download protocol to use in image pillar')
   parser.add_argument('directory', help='Directory with build image and metadata')
   parser.add_argument('build_id', help='Build ID for given image')
 
@@ -541,6 +543,6 @@ if __name__ == "__main__":
       print("Running in DRY RUN mode. Assuming imageId = 1")
 
   image_data = inspect_image(args.directory, args.build_id)
-  pillar_data = prepare_pillars(image_data, args.host, args.org_id, args.revision)
+  pillar_data = prepare_pillars(image_data, args.host, args.org_id, args.revision, args.protocol)
   import_image(pillar_data, args.org_id, args.directory, args.no_move, args.dry_run)
   print("All done")
