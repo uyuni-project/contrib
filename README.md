@@ -4,6 +4,10 @@
 
 This Uyuni Contrib repository contains tools that are not part of the core Uyuni system, mainly because they address a limited audience or are too experimental to be part of the main repository. This does not preclude their usefulness. Please use with caution!
 
+## api-scripts
+
+A collection of useful and tested scripts using the API. Originally developed at https://github.com/doccaz/susemanager-api.
+
 ## hubtools
 
 Tools to install and configure SUSE Manager Hub.
