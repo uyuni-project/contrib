@@ -21,8 +21,10 @@ This will make the tool available inside the container and the files will be per
 # Tools
 
 
-| Tool name                        | Description                                                                                                                                                                    | Extra package                                                         |
-|----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| `delete-old-systems-interactive` | Delete systems that are inactive                                                                                                                                               | --                                                                    |
-| `migrate-system-profile`         | Migrate a system from one organization to another. Also needs to deploy the file `migrateSystemProfile.py` to `/usr/lib/python3.6/site-packages/utils/migrateSystemProfile.py` | `python3-rhnlib` &`uyuni-base-common` && `python3-uyuni-common-libs`  |
+| Tool name                        | Description                                                                                                                                                                                                                    | Extra package                                                               |
+|----------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| `delete-old-systems-interactive` | Delete systems that are inactive                                                                                                                                                                                               | --                                                                          |
+| `migrate-system-profile`         | <b>Deprecated: use UI and API calls instead</b>.Migrate a system from one organization to another. Also needs to deploy the file `migrateSystemProfile.py` to `/usr/lib/python3.6/site-packages/utils/migrateSystemProfile.py` | `python3-rhnlib` <br/>`uyuni-base-common` <br/> `python3-uyuni-common-libs` |
+| `spacewalk-api`                  | <b>Deprecated: use spacecmd instead</b>. Call uyuni API.                                                                                                                                                                       | --                                                                          |
+
 
