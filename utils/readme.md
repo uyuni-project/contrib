@@ -26,5 +26,18 @@ This will make the tool available inside the container and the files will be per
 | `delete-old-systems-interactive` | Delete systems that are inactive                                                                                                                                                                                               | --                                                                          |
 | `migrate-system-profile`         | <b>Deprecated: use UI and API calls instead</b>.Migrate a system from one organization to another. Also needs to deploy the file `migrateSystemProfile.py` to `/usr/lib/python3.6/site-packages/utils/migrateSystemProfile.py` | `python3-rhnlib` <br/>`uyuni-base-common` <br/> `python3-uyuni-common-libs` |
 | `spacewalk-api`                  | <b>Deprecated: use spacecmd instead</b>. Call uyuni API.                                                                                                                                                                       | --                                                                          |
+| `sw-ldap-user-sync`              | Synchronize users from LDAP server to uyuni server                                                                                                                                                                             | `python3-PyYAML` <br/> `python3-ldap`                                       |
 
 
+## sw-ldap-user-sync
+
+This tool can be deployed in any machine, since it uses the uyuni API.
+
+Requires packages:
+
+    * python3-PyYAML
+    * python3-ldap
+
+Copy the file `sw-ldap-user-sync.conf` to `/etc/rhn/sw-ldap-user-sync.conf`. Set the needed configuration data to access the ldap server and uyuni server API.
+
+Copy the tool file `sw-ldap-user-sync` into the directory `/usr/local/bin`.
