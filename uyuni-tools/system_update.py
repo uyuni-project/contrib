@@ -52,9 +52,9 @@ def do_update_minion(updateble_patches):
     if not patches:
         smt.log_info('No update for salt-minion"')
         return
-    smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "SALT minion update", "minor")
+    smt.system_scheduleapplyerrate(patches, datetime.datetime.utcnow(), "SALT minion update", "minor")
     time.sleep(20)
-    smt.system_schedulepackagerefresh(datetime.datetime.now())
+    smt.system_schedulepackagerefresh(datetime.datetime.utcnow())
     return
 
 
@@ -69,8 +69,8 @@ def do_update_zypper(updateble_patches):
     if not patches:
         smt.log_info('No update for zypper"')
         return
-    smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "zypper update", "minor")
-    smt.system_schedulepackagerefresh(datetime.datetime.now())
+    smt.system_scheduleapplyerrate(patches, datetime.datetime.utcnow(), "zypper update", "minor")
+    smt.system_schedulepackagerefresh(datetime.datetime.utcnow())
     return
 
 
@@ -91,8 +91,8 @@ def do_upgrade(no_reboot, force_reboot):
             patchnames.append(patch.get('advisory_name'))
         smt.log_debug("The following patches are planned:")
         smt.log_debug(patchnames)
-        smt.system_scheduleapplyerrate(patches, datetime.datetime.now(), "Errata update")
-        smt.system_schedulepackagerefresh(datetime.datetime.now())
+        smt.system_scheduleapplyerrate(patches, datetime.datetime.utcnow(), "Errata update")
+        smt.system_schedulepackagerefresh(datetime.datetime.utcnow())
         reboot_needed_errata = True
     else:
         smt.log_info('Errata update not needed. Checking for package update')
@@ -108,8 +108,8 @@ def do_upgrade(no_reboot, force_reboot):
     if rpms:
         smt.log_debug("The following packages are planned:")
         smt.log_debug(rpmnames)
-        smt.system_schedulepackageinstall(rpms, datetime.datetime.now(), "Packages update")
-        smt.system_schedulepackagerefresh(datetime.datetime.now())
+        smt.system_schedulepackageinstall(rpms, datetime.datetime.utcnow(), "Packages update")
+        smt.system_schedulepackagerefresh(datetime.datetime.utcnow())
         reboot_needed_package = True
         reboot_needed_errata = True
     else:
@@ -131,9 +131,9 @@ def do_upgrade(no_reboot, force_reboot):
     if force_reboot:
         smt.log_debug("Option force_reboot given")
     if not no_reboot and reboot_needed_package and reboot_needed_errata:
-        smt.system_schedulereboot(datetime.datetime.now())
+        smt.system_schedulereboot(datetime.datetime.utcnow())
         time.sleep(30)
-    smt.system_schedulehardwarerefresh(datetime.datetime.now(), True)
+    smt.system_schedulehardwarerefresh(datetime.datetime.utcnow(), True)
     return
 
 
@@ -180,19 +180,19 @@ def do_spmigrate(new_basechannel, no_reboot, no_dryrun):
         if no_dryrun:
             dryrun_complete = True
         else:
-            dryrun_complete = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.now(), "SupportPack Migration dry run")
+            dryrun_complete = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, True, datetime.datetime.utcnow(), "SupportPack Migration dry run")
         if dryrun_complete:
             time.sleep(20)
-            result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.now(), "SupportPack Migration")
+            result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.utcnow(), "SupportPack Migration")
         if result_spmig and not no_reboot:
             smt.log_info("Support Pack migration completed successful, rebooting server {}".format(smt.hostname))
-            smt.system_schedulereboot(datetime.datetime.now())
+            smt.system_schedulereboot(datetime.datetime.utcnow())
         elif result_spmig and no_reboot:
             smt.log_info("Support Pack migration completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(smt.hostname))
         else:
             smt.log_error("SP Migration failed. Please check logs.")
-        smt.system_schedulepackagerefresh(datetime.datetime.now())
-        smt.system_schedulehardwarerefresh(datetime.datetime.now())
+        smt.system_schedulepackagerefresh(datetime.datetime.utcnow())
+        smt.system_schedulehardwarerefresh(datetime.datetime.utcnow())
     else:
         smt.log_error("SP Migration failed. No SP update available")
 
@@ -225,7 +225,7 @@ def remove_ltss():
             continue
         else:
             new_child_channels.append(child_channel.get('label'))
-    smt.system_schedulechangechannels(smt.system_getsubscribedbasechannel().get('label'), new_child_channels, datetime.datetime.now())
+    smt.system_schedulechangechannels(smt.system_getsubscribedbasechannel().get('label'), new_child_channels, datetime.datetime.utcnow())
     installed_packages = smt.system_listinstalledpackages()
     remove_packages = []
     for package in installed_packages:
@@ -235,8 +235,8 @@ def remove_ltss():
     if remove_packages:
         for x in remove_packages:
             script += "{} ".format(x)
-        smt.system_schedulescriptrun(script, 60, datetime.datetime.now())
-        smt.system_schedulepackagerefresh(datetime.datetime.now())
+        smt.system_schedulescriptrun(script, 60, datetime.datetime.utcnow())
+        smt.system_schedulepackagerefresh(datetime.datetime.utcnow())
     return
 
 
@@ -357,14 +357,14 @@ def do_update_script(phase):
     (script, list_channel, timeout) = read_update_script(phase, smt.hostname, script, list_channel)
     if script:
         smt.log_info("Execute {} update scripts".format(phase))
-        smt.system_schedulescriptrun("#!/bin/bash\n" + script, timeout, xmlrpc.client.DateTime(datetime.datetime.now()))
+        smt.system_schedulescriptrun("#!/bin/bash\n" + script, timeout, xmlrpc.client.DateTime(datetime.datetime.utcnow()))
     else:
         smt.log_info("There is no {} update script available for server.".format(phase))
     if list_channel:
         list_systems = [smt.systemid]
         smt.system_config_addchannels(list_systems, list_channel)
         smt.log_info("Performing high state for {} state channels".format(phase))
-        smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.now()))
+        smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.utcnow()))
         smt.system_config_removechannels(list_systems, list_channel)
         return True
     else:
@@ -385,7 +385,7 @@ def update_server(args):
         highstate_done = do_update_script("begin")
     if args.applyconfig and not highstate_done:
         if smt.system_getdetails().get('base_entitlement') == "salt_entitled":
-            smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.now()))
+            smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.utcnow()))
     (do_spm, new_basechannel) = check_for_sp_migration()
     if do_spm:
         smt.log_info("Server {} will get a SupportPack Migration to {} ".format(args.server, new_basechannel))
@@ -398,7 +398,7 @@ def update_server(args):
         highstate_done = do_update_script("end")
     if args.applyconfig and not highstate_done:
         if smt.system_getdetails().get('base_entitlement') == "salt_entitled":
-            smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.now()))
+            smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.utcnow()))
     if args.post_script:
         smt.log_info("Executing script {}".format(args.post_script))
         if os.path.isfile(args.post_script.split(" ")[0]):
