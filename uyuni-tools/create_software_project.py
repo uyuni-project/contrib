@@ -69,8 +69,8 @@ def create_project(project, environment, basechannel, addchannel, description):
     Create a new software project
     """
     if not description:
-        dat = ("%s-%02d-%02d" % (datetime.datetime.now().year, datetime.datetime.now().month,
-                                 datetime.datetime.now().day))
+        dat = ("%s-%02d-%02d" % (datetime.datetime.utcnow().year, datetime.datetime.utcnow().month,
+                                 datetime.datetime.utcnow().day))
         description = "Created on {}".format(dat)
     smt.log_info("Creating project {}".format(project))
     smt.contentmanagement_createproject(project, project, description)

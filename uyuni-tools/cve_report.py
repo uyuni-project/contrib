@@ -73,7 +73,7 @@ def get_cve_content(args):
     Get CVE content.
     """
     smt.log_info("")
-    smt.log_info("Start {}".format(datetime.datetime.now()))
+    smt.log_info("Start {}".format(datetime.datetime.utcnow()))
     smt.log_info("")
     smt.log_info("Given list of CVEs: {}".format(args.cve))
     smt.log_info("")

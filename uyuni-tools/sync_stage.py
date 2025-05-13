@@ -37,8 +37,8 @@ def create_backup(par):
     """
     Create backup from stage
     """
-    dat = ("%s%02d%02d" % (datetime.datetime.now().year, datetime.datetime.now().month,
-                           datetime.datetime.now().day))
+    dat = ("%s%02d%02d" % (datetime.datetime.utcnow().year, datetime.datetime.utcnow().month,
+                           datetime.datetime.utcnow().day))
     clo = "bu-" + dat + "-" + par
     if smt.channel_software_getdetails(clo, True):
         smt.fatal_error('The backupchannel {} already exists. Aborting operation.'.format(clo))
@@ -99,7 +99,7 @@ def update_project(args):
             if args.message:
                 build_message = args.message
             else:
-                dat = ("%s-%02d-%02d" % (datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day))
+                dat = ("%s-%02d-%02d" % (datetime.datetime.utcnow().year, datetime.datetime.utcnow().month, datetime.datetime.utcnow().day))
                 build_message = "Created on {}".format(dat)
             if number_in_list == 1:
                 smt.contentmanagement_buildproject(args.project, build_message)

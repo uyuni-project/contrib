@@ -168,7 +168,7 @@ class SMTools:
             smtp_connection = smtplib.SMTP(CONFIGSM['smtp']['server'])
         except Exception:
             self.fatal_error("error when sending mail")
-        datenow = datetime.datetime.now()
+        datenow = datetime.datetime.utcnow()
         txt = ("Dear admin,\n\nThe job {} has run today at {}.".format(script, datenow))
         txt += "\n\nUnfortunately there have been some error\n\nPlease see the following list:\n"
         txt += self.error_text
@@ -294,14 +294,14 @@ class SMTools:
         Check progress of action
         """
         (failed_count, completed_count, result_message) = self.event_status(action_id)
-        end_time = datetime.datetime.now() + datetime.timedelta(0, timeout)
+        end_time = datetime.datetime.utcnow() + datetime.timedelta(0, timeout)
         try:
             wait_time = CONFIGSM['maintenance']['wait_between_events_check']
         except:
             wait_time = 15
             self.minor_error("Please set value for maintenance | wait_between_events_check")
         while failed_count == 0 and completed_count == 0:
-            if datetime.datetime.now() > end_time:
+            if datetime.datetime.utcnow() > end_time:
                 message = "Action '{}' run in timeout. Please check server {}.".format(action, self.hostname)
                 self.error_handling('timeout_passed', message)
                 return 1, 0, message
@@ -315,7 +315,7 @@ class SMTools:
         """
         Check progress of action
         """
-        end_time = datetime.datetime.now() + datetime.timedelta(0, timeout)
+        end_time = datetime.datetime.utcnow() + datetime.timedelta(0, timeout)
         try:
             wait_time = CONFIGSM['maintenance']['wait_between_events_check']
         except:
@@ -325,7 +325,7 @@ class SMTools:
         in_progress = self.schedule_listinprogresssystems(action_id)
         while in_progress:
             self.log_info("Still Running")
-            if datetime.datetime.now() > end_time:
+            if datetime.datetime.utcnow() > end_time:
                 message = "Action '{}' run in timeout. Please check server {}.".format(action, self.hostname)
                 self.error_handling('timeout_passed', message)
                 return 1, 0, message

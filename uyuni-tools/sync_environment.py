@@ -36,8 +36,8 @@ def create_backup(par):
     """
     Create backup from stage
     """
-    dat = ("%s%02d%02d" % (datetime.datetime.now().year, datetime.datetime.now().month,
-                           datetime.datetime.now().day))
+    dat = ("%s%02d%02d" % (datetime.datetime.utcnow().year, datetime.datetime.utcnow().month,
+                           datetime.datetime.utcnow().day))
     clo = "bu-" + dat + "-" + par
     if smt.channel_software_getdetails(clo, True):
         smt.fatal_error('The backupchannel {} already exists. Aborting operation.'.format(clo))
@@ -84,7 +84,7 @@ def update_environment(args):
                                 if not smt.channel_software_getdetails(channel).get('parent_channel_label').startswith(channel_start):
                                     create_backup(channel)
                                     break
-                    dat = ("%s-%02d-%02d" % (datetime.datetime.now().year, datetime.datetime.now().month, datetime.datetime.now().day))
+                    dat = ("%s-%02d-%02d" % (datetime.datetime.utcnow().year, datetime.datetime.utcnow().month, datetime.datetime.utcnow().day))
                     build_message = "Created on {}".format(dat)
                     if number_in_list == 1:
                         project_env = environment_details.get('label')

@@ -90,7 +90,7 @@ def do_package_update(server_id):
         result = check_progress(ai)
     if result == 0:
         try:
-            ai = smt.client.system.schedulePackageRefresh(smt.session, server_id, datetime.datetime.now())
+            ai = smt.client.system.schedulePackageRefresh(smt.session, server_id, datetime.datetime.utcnow())
         except xmlrpc.client.Fault as err:
             smt.log_info("unable to schedule package refresh for server. Error: {}".format(err))
             return 2
@@ -113,7 +113,7 @@ def apply_updates_regular(sd):
     for x in alluprpms:
         rpms.append(x.get('to_package_id'))
     try:
-        actionid = smt.client.system.schedulePackageInstall(smt.session, sd, rpms, datetime.datetime.now())
+        actionid = smt.client.system.schedulePackageInstall(smt.session, sd, rpms, datetime.datetime.utcnow())
     except xmlrpc.client.Fault:
         smt.log_info('Unable to add package to chain')
         return 2

@@ -103,7 +103,7 @@ exit $rc""".format(proxy=proxy, key=rereg_key)
 
         else:
             script = "#!/bin/bash\nrhnreg_ks --activationkey={} --serverUrl=https://{}/XMLRPC --force\n".format(rereg_key, proxy)
-        smt.system_schedulescriptrun(script, 6000, datetime.datetime.now())
+        smt.system_schedulescriptrun(script, 6000, datetime.datetime.utcnow())
 
 
 def rereg_server(args):
