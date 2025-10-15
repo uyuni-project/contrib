@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 """
-# (c) 2019 SUSE Linux GmbH, Germany.
+# Copyright (c) 2025 SUSE LLC, Germany.
 # GNU Public License. No warranty. No Support
 # For question/suggestions/bugs mail: amehmood@suse.com
 #
@@ -7,11 +8,10 @@
 #
 # Created by: Abid Mehmood
 #
-# Using this cscript you can update your actiavation keys and CLM projects by removing the old client tools and switching to new client tools. 
-# This script assumes that new client tools have been already syned in your MLM/Uyuni instance.
+# Using this script user can update their activation keys and CLM projects by removing the old client tools and switching to new client tools.
+# This script assumes that new client tools have been already synced in your SUSE Multi-Linux Manager and Uyuni instance. One can use sync_client_tools.py script to sync the new client tools.
 #
-# Releasmt.session:
-# 2017-01-2 Abid - initial release.
+# 2025-10-14 Abid - initial release.
 
 """
 import xmlrpc.client
@@ -24,6 +24,7 @@ from argparse import RawTextHelpFormatter
 SUSE_MULTI_LINUX_MANAGER_SERVER = "<your-server>"
 USERNAME = "<username>"
 PASSWORD = "<password>"
+
 
 def log(message):
     print(f"[INFO] {message}")
@@ -84,7 +85,8 @@ def process_clm_project(client, key, project_label, base_channels, dry_run):
         if base_channel_label:
             log(f"Base channel determined for project: {base_channel_label}")
             children = client.channel.software.listChildren(key, base_channel_label)
-            managertools_labels = [c['label'] for c in children if c.get('channel_family_label') == 'SLE-M-T']
+            managertools_labels = [s['label'] for s in children if 'managertools' in s.get('label', '').lower()]
+            #managertools_labels = [c['label'] for c in children if c.get('channel_family_label') == 'SLE-M-T']
 
             if managertools_labels:
                 for label in managertools_labels:
@@ -187,22 +189,22 @@ def process_activation_keys(client, key, activation_keys, dry_run):
         channels_to_attach = []
         # Find the new 'managertools' channel based on the base channel of the activation key
         base_channel_label = detail.get('base_channel_label')
-        
-        if base_channel_label:
+        if base_channel_label and base_channel_label != 'none':
             # Find children of the base channel
             children = client.channel.software.listChildren(key, base_channel_label)
             # Filter for the new client tools channel
-            new_tools = [c['label'] for c in children if c.get('channel_family_label') == 'SLE-M-T']
+            #new_tools = [c['label'] for c in children if c.get('channel_family_label') == 'SLE-M-T']
+            new_tools = [c['label'] for c in children if 'managertools' in c.get('label', '').lower()]
             
             # Condition: Only proceed if there are old tools to remove and new tools to add.
             if old_tools and new_tools:
                 channels_to_attach = new_tools
             elif old_tools and not new_tools:
-                 log(f"No new client tools channel found for base channel {base_channel_label}. Skipping update for key {ak_key}.")
-                 continue
+                log(f"No new client tools channel found for base channel {base_channel_label}. Skipping update for key {ak_key}.")
+                continue
             else:
-                 log(f"No old client tools channels found for key {ak_key}. Skipping update.")
-                 continue
+                log(f"No old client tools channels found for key {ak_key}. Skipping update.")
+                continue
         else:
             log(f"Could not determine base channel for key {ak_key}. Skipping update.")
             continue
