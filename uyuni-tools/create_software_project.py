@@ -15,11 +15,11 @@
 # - Will create the given environments.
 # - Will add the give channels (parent or separate channels)
 #
-# What is not present on the moment:
+# What is not present at the moment:
 # - add a filter
 #
 # The script will not build or promote the project environments.
-# Run sync_state.py --project <project> --environment <environment>
+# Run sync_stage.py --project <project> --environment <environment>
 # Start with the first environment and give the system enough time to perform the update.
 #
 # Releases:
@@ -27,7 +27,8 @@
 # 2020-07-08 M.Brookhuis - Version 2.
 #                        - changed logging
 #                        - moved api calls to smtools.py
-#
+# 2025-06-06 M.Brookhuis - change in description to use sync_stage
+# 2025-06-19 M.Brookhuis - changed behavior of add and delete. They will display warning if more options are given
 #
 
 """
@@ -35,9 +36,8 @@ This script will create a new content lifecycle software project
 """
 
 import argparse
-from argparse import RawTextHelpFormatter
-import xmlrpc.client
 import datetime
+
 import smtools
 
 __smt = None
@@ -48,20 +48,20 @@ def channels_to_project(project, channels, action):
     Add the channels to the project
     """
     for channel in channels.split(","):
-        smt.log_info("Adding channel '{}' to project '{}'".format(channel, project))
+        smt.log_info(f"{action} channel '{channel}' to project '{project}'")
         if smt.channel_software_getdetails(channel):
             if action == "add":
                 if smt.contentmanagement_attachsource(project, channel, False):
                     smt.log_info("completed")
                 else:
-                    smt.log_warning("unable to add channel '{}'. Skipping".format(channel))
+                    smt.log_warning(f"unable to add channel '{channel}'. Skipping")
             if action == "delete":
                 if smt.contentmanagement_detachsource(project, channel, False):
                     smt.log_info("completed")
                 else:
-                    smt.log_warning("unable to remove channel '{}'. Skipping".format(channel))
+                    smt.log_warning(f"unable to remove channel '{channel}'. Skipping")
         else:
-            smt.log_warning("Channel '{}' doesn't exist. Skipping".format(channel))
+            smt.log_warning(f"Channel '{channel}' doesn't exist. Skipping")
 
 
 def create_project(project, environment, basechannel, addchannel, description):
@@ -71,12 +71,12 @@ def create_project(project, environment, basechannel, addchannel, description):
     if not description:
         dat = ("%s-%02d-%02d" % (datetime.datetime.now().year, datetime.datetime.now().month,
                                  datetime.datetime.now().day))
-        description = "Created on {}".format(dat)
-    smt.log_info("Creating project {}".format(project))
+        description = f"Created on {dat}"
+    smt.log_info(f"Creating project {project}")
     smt.contentmanagement_createproject(project, project, description)
     pre_env = ""
     for env in environment.split(","):
-        smt.log_info("Adding environment {}".format(env))
+        smt.log_info(f"Adding environment {env}")
         env_desc = env + " " + description
         smt.contentmanagement_createenvironment(project, pre_env, env, env, env_desc)
         pre_env = env
@@ -85,7 +85,8 @@ def create_project(project, environment, basechannel, addchannel, description):
         if smt.channel_software_getdetails(basechannel, True):
             all_channels = basechannel + "," + add_child_channels(basechannel)
         else:
-            smt.log_warning("The given basechannel {} doesn't exist. Please check. Continue with next step.".format(basechannel))
+            smt.log_warning(f"The given basechannel {basechannel} doesn't exist. Please check. "
+                            f"Continue with next step.")
     if addchannel:
         if all_channels:
             all_channels = all_channels + "," + addchannel
@@ -120,7 +121,8 @@ def manage_project(args):
     if project_present:
         # project is present so only add and delete channel is valid
         if args.environment and args.basechannel:
-            smt.fatal_error("Project {} already exists and the options given can only be used for creation new project. Aborting".format(args.project))
+            smt.log_warning(f"Project {args.project} already exists. The options --environment and "
+                            f"--basechannel are ignored")
         if args.addchannel:
             channels_to_project(args.project, args.addchannel, "add")
         if args.deletechannel:
@@ -129,13 +131,12 @@ def manage_project(args):
         # project is not present so needs to be created.
         create_project(args.project, args.environment, args.basechannel, args.addchannel, args.description)
 
-
 def main():
     """
     Main function
     """
     global smt
-    parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=('''\
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter, description=('''\
         Usage:
         create_software_project.py 
             '''))
@@ -145,8 +146,7 @@ def main():
     parser.add_argument("-a", '--addchannel', help="Comma delimited list without spaces of the channels to be added. Can be used together with --basechannel")
     parser.add_argument("-d", '--deletechannel', help="Comma delimited list without spaces of the channels to be removed from the project.")
     parser.add_argument("-m", '--description', help="Description of the project to be created.")
-
-    parser.add_argument('--version', action='version', version='%(prog)s 2.0.0, July 8, 2020')
+    parser.add_argument('--version', action='version', version='%(prog)s 2.0.1, June 19, 2025')
     args = parser.parse_args()
     if not args.project:
         smt = smtools.SMTools("create_software_project")
@@ -159,7 +159,6 @@ def main():
     smt.suman_login()
     manage_project(args)
     smt.close_program()
-
 
 if __name__ == "__main__":
     SystemExit(main())

@@ -1,0 +1,126 @@
+SMT
+===
+
+global
+------
+
+def __init__(self, program, hostname="", hostbased=False):
+def minor_error(self, errtxt):
+def fatal_error(self, errtxt, return_code=1):
+def log_info(self, errtxt):
+def log_error(self, errtxt):
+def log_warning(self, errtxt):
+def log_debug(self, errtxt):
+def send_mail(self):
+def set_hostname(self, host_name, fatal=True):
+def set_hostname_only(self, host_name):
+def close_program(self, return_code=0):
+def exit_program(self, return_code=0):
+def suman_login(self):
+def suman_login(self):
+def suman_logout(self):
+def get_server_id(self, fatal=True, name=""):
+def event_status(self, action_id):
+def check_progress(self, action_id, timeout, action):
+def check_progress(self, action_id, timeout, action):
+def error_handling(self, err_type, message):
+
+system
+------
+def system_getdetails(self, sid=0):
+def system_getname(self, id):
+def system_listsystems(self):
+def system_deletesystem(self):
+def system_getrelevanterrata(self):
+def system_getsubscribedbasechannel(self):
+def system_listinactivesystems(self):
+def system_listinstalledpackages(self):
+def system_listmigrationtargets(self):
+def system_listlatestupgradablepackages(self):
+def system_listsubscribedchildchannels(self):
+def system_listsystemevents(self):
+def system_obtainreactivationkey(self):
+def system_scheduleapplyerrate(self, patches, date, action, errlev="fatal"):
+def system_scheduleapplyhighstate(self, date, test=False):
+def system_scheduleapplystates(self, states, date, test=False):
+def system_schedulechangechannels(self, basechannel, childchannels, date):
+def system_schedulehardwarerefresh(self, date, nowait=False):
+def system_schedulepackageinstall(self, packages, date, action):
+def system_schedulepackagerefresh(self, date):
+def system_schedulereboot(self, date):
+def system_schedulescriptrun(self, script, timeout, date):
+def system_schedulespmigration(self, spident, basechannel, childchannels, dryrun, date, action):
+def system_config_set_channels(self, channels, fatal=True):
+def system_set_group_membership(self, sgid, fatal=True):
+
+softwarechannel
+---------------
+def channel_software_associaterepo(self, channel, repo):
+def channel_software_clone(self, channel, clone_channel, original_state):
+def channel_software_create(self, label, name, summary, archlabel, parentlabel):
+def channel_software_createrepo_cert(self, channel, ch_type, ch_url, ch_ca, ch_cert, ch_key, no_fatal=False):
+def channel_software_createrepo(self, channel, ch_type, ch_url, no_fatal=False):
+def channel_software_getdetails(self, channel, no_fatal=False):
+def channel_software_listchildren(self, channel):
+def channel_software_mergeerrata(self, parent_channel, clone_channel):
+def channel_software_mergepackages(self, parent_channel, clone_channel):
+def channel_software_getrepodetails(self, channel, no_fatal=False):
+def channel_software_syncrepo(self, repo, schedule):
+def channel_software_listsubscribedsystems(self, channel):
+def get_labels_all_basechannels(self):
+def get_labels_all_channels(self):
+
+contentmanagement
+-----------------
+def contentmanagement_attachsource(self, project, channel, fatal=True):
+def contentmanagement_buildproject(self, project, build_message):
+def contentmanagement_createproject(self, project, label, description):
+def contentmanagement_createenvironment(self, project, pre_label, label, name, description):
+def contentmanagement_detachsource(self, project, channel, fatal=True):
+def contentmanagement_listprojectenvironment(self, project, no_fatal=False):
+def contentmanagement_listprojects(self):
+def contentmanagement_lookupenvironment(self, project, env):
+def contentmanagement_lookupproject(self, project, fatal=False):
+def contentmanagement_promoteproject(self, project, environment):
+def contentmanagement_listprojectsources(self, project):
+def contentmanagement_removeenvironment(self, project, environment):
+def contentmanagement_removeproject(self, project):
+def configchannel_channelexists(self, state):
+
+configuration channel
+---------------------
+def system_config_addchannels(self, systems, channel, addtotop=False):
+def system_config_removechannels(self, systems, channel):
+
+systemgroups:
+-------------
+def systemgroup_listsystemminimal(self, group):
+def systemgroup_listactivesystemsingroup(self, group):
+def systemgroup_get_details(self, group, fatal=True):
+def systemgroup_list_all_groups(self):
+def systemgroup_add_or_remove_systems(self, group, systems, add=True):
+def systemgroup_create(self, group, description):
+
+kickstart
+---------
+def kickstart_keys_listallkeys(self):
+def kickstart_tree_list(self, channel):
+def kickstart_tree_deletetreeandprofiles(self, label):
+def kickstart_list_kickstarts(self):
+def kickstart_deleteprofile(self, label):
+
+scheduling
+----------
+def schedule_listinprogresssystems(self, action_id):
+def schedule_listcompletedsystems(self, action_id):
+def schedule_listfailedsystems(self, action_id):
+
+image
+-----
+def image_profile_create(self, image_profile_name, image_profile_type, software_channel_store_label,
+def image_schedule_image_build(self, profile_label, version, build_host_id, date):
+
+activationkey
+-------------
+def activationkey_listactivationkeys(self):
+def activationkey_delete(self, key):
