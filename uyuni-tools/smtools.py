@@ -24,7 +24,7 @@
 """
 This library contains functions used in other modules
 """
-
+import ssl
 from email.mime.text import MIMEText
 import xmlrpc.client
 import logging
@@ -223,17 +223,56 @@ class SMTools:
         """
         Log in to SUSE Manager Server.
         """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.connect_ex((CONFIGSM['suman']['server'], 443))
-        except:
-            self.fatal_error("Unable to login to SUSE Manager server {}".format(CONFIGSM['suman']['server']))
+        if CONFIGSM['suman']['ssl_certificate_check']:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.connect_ex((CONFIGSM['suman']['server'], 443))
+            except:
+                self.fatal_error("Unable to login to SUSE Manager server {} SOCKET".format(CONFIGSM['suman']['server']))
 
-        self.client = xmlrpc.client.Server("https://" + CONFIGSM['suman']['server'] + "/rpc/api")
-        try:
-            self.session = self.client.auth.login(CONFIGSM['suman']['user'], CONFIGSM['suman']['password'])
-        except xmlrpc.client.Fault:
-            self.fatal_error("Unable to login to SUSE Manager server {}".format(CONFIGSM['suman']['server']))
+            self.client = xmlrpc.client.Server("https://" + CONFIGSM['suman']['server'] + "/rpc/api")
+            try:
+                self.session = self.client.auth.login(CONFIGSM['suman']['user'], CONFIGSM['suman']['password'])
+            except:
+                self.fatal_error("Unable to login to SUSE Manager server {} XMLRPC".format(CONFIGSM['suman']['server']))
+        else:
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.connect_ex((CONFIGSM['suman']['server'], 443))
+            except:
+                self.fatal_error("Unable to login to SUSE Manager server {} SOCKET".format(CONFIGSM['suman']['server']))
+            context_xmlrpc = ssl.create_default_context()
+            context_xmlrpc.check_hostname = False
+            context_xmlrpc.verify_mode = ssl.CERT_NONE
+            transport = xmlrpc.client.Transport()
+            transport._ssl_wrap = lambda host, **kwargs: context_xmlrpc.wrap_socket(socket.create_connection((host, 443)), server_hostname=host)
+            self.client = xmlrpc.client.Server("https://" + CONFIGSM['suman']['server'] + "/rpc/api", transport=transport)
+            try:
+                self.session = self.client.auth.login(CONFIGSM['suman']['user'], CONFIGSM['suman']['password'])
+            except:
+                self.fatal_error("Unable to login to SUSE Manager server {} XMLRPC".format(CONFIGSM['suman']['server']))
+
+    '''
+        def suman_login(self):
+            """
+            Log in to SUSE Manager Server.
+            """
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.connect_ex((CONFIGSM['suman']['server'], 443))
+            except:
+                self.fatal_error("Unable to login to SUSE Manager server {}".format(CONFIGSM['suman']['server']))
+    
+            self.client = xmlrpc.client.Server("https://" + CONFIGSM['suman']['server'] + "/rpc/api")
+            try:
+                self.session = self.client.auth.login(CONFIGSM['suman']['user'], CONFIGSM['suman']['password'])
+            except xmlrpc.client.Fault:
+                self.fatal_error("Unable to login to SUSE Manager server {}".format(CONFIGSM['suman']['server']))
+    '''
 
     def suman_logout(self):
         """
@@ -354,15 +393,19 @@ class SMTools:
     API call related to system
     """
 
-    def system_getdetails(self):
+    def system_getdetails(self, sid=0):
+        if sid == 0:
+            systemid = self.systemid
+        else:
+            systemid = sid
         try:
-            return self.client.system.getDetails(self.session, self.systemid)
+            return self.client.system.getDetails(self.session, systemid)
         except xmlrpc.client.Fault as err:
             self.log_debug('api-call: system.getDetails')
             self.log_debug('Value passed: ')
-            self.log_debug('  system_id:  {}'.format(self.systemid))
+            self.log_debug('  system_id:  {}'.format(systemid))
             self.log_debug("Error: \n{}".format(err))
-            self.fatal_error('Unable to get details for server {}.'.format(self.hostname))
+            self.fatal_error('Unable to get details for server. Error: \n{}'.format(err))
 
     def system_getname(self, id):
         try:
@@ -373,6 +416,25 @@ class SMTools:
             self.log_debug('  system_id:  {}'.format(id))
             self.log_debug("Error: \n{}".format(err))
             self.fatal_error('Unable to get hostname for server with ID {}.'.format(id))
+
+    def system_delete(self, cleanup="NO_CLEANUP"):
+        try:
+            return self.client.system.deleteSystem(self.session, self.systemid, cleanup)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.deleteSystem')
+            self.log_debug('Value passed: ')
+            self.log_debug('  system_id:    {}'.format(self.systemid))
+            self.log_debug('  cleanup_type: {}'.format(cleanup))
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error('Unable to delete host {}.'.format(self.hostname))
+
+    def system_listsystems(self):
+        try:
+            return self.client.system.listSystems(self.session)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.listSystems')
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error('Unable to get list of all systems.')
 
     def system_getrelevanterrata(self):
         try:
@@ -413,8 +475,6 @@ class SMTools:
             self.log_debug('  systemid:    {}'.format(self.systemid))
             self.log_debug("Error: \n{}".format(err))
             self.fatal_error(("Unable to receive list of installed packages. Error: \n{}".format(err)))
-
-
 
     def system_listmigrationtargets(self):
         try:
@@ -525,6 +585,30 @@ class SMTools:
             self.error_handling('configupdate', message)
             return False
 
+    def system_scheduleapplystates(self, states, date, test=False):
+        self.log_info("Performing system.scheduleApplyStates")
+        try:
+            schedule_id = self.client.system.scheduleApplyStates(self.session, self.systemid, states, date, test)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.scheduleApplyStates')
+            self.log_debug('Value passed: ')
+            self.log_debug('  system_id:      {}'.format(self.systemid))
+            self.log_debug('  states:         {}'.format(states))
+            self.log_debug('  Time:           {}'.format(date))
+            self.log_debug('  Test-mode:      {}'.format(test))
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error(("Error to deploy configuration. Error: \n{}".format(err)))
+        timeout = CONFIGSM['suman']['timeout']
+        (result_failed, result_completed, result_message) = self.check_progress(schedule_id, timeout, "Apply States")
+        if result_completed == 1:
+            self.log_info("Apply states completed successful.")
+            return True
+        else:
+            message = "Applyhighstate failed!!!!! Server {} will not be updated!\n\nThe error messages is:\n{}".format(
+                self.hostname, result_message)
+            self.error_handling('configupdate', message)
+            return False
+
     def system_schedulechangechannels(self, basechannel, childchannels, date):
         self.log_info("Scheduling channel changes")
         try:
@@ -541,7 +625,7 @@ class SMTools:
         timeout = CONFIGSM['suman']['timeout']
         (result_failed, result_completed, result_message) = self.check_progress(schedule_id, timeout, "Change channels")
         if result_completed == 1:
-            self.log_info("Channgel change completed successful.")
+            self.log_info("Channel change completed successful.")
         else:
             self.minor_error(
                 "Channel Change failed on server {}.\n\nThe error messages is:\n{}".format(self.hostname, result_message))
@@ -673,8 +757,8 @@ class SMTools:
         self.log_info("New basechannel will be: {}".format(basechannel))
         self.log_info("New childchannes will be: {}".format(childchannels))
         try:
-            schedule_id = self.client.system.scheduleSPMigration(self.session, self.systemid, spident, basechannel,
-                                                                 childchannels, dryrun, True, date)
+            schedule_id = self.client.system.scheduleProductMigration(self.session, self.systemid, spident,
+                                                                      basechannel, childchannels, dryrun, True, date)
         except xmlrpc.client.Fault as err:
             self.log_debug('api-call: system.scheduleSPMigration')
             self.log_debug('Value passed: ')
@@ -700,6 +784,49 @@ class SMTools:
                                                                                                            result_message)
             self.error_handling('spmig', message)
             return False
+
+    def system_config_set_channels(self, channels, fatal=True):
+        """
+        Setting the assiged configuration channels
+
+        :param channels: the channels to be assigned in the right order
+        :param fatal: whether to fatal error
+        :return:
+        """
+        try:
+            return self.client.system.config.setChannels(self.session, [self.systemid], channels)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.config.setChannels')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  system_id:  {self.systemid}')
+            self.log_debug(f'  channels:   {channels}')
+            self.log_debug(f"Error: \n{err}")
+            if fatal:
+                self.fatal_error(f'Unable set configuration channels for server {self.hostname}.')
+            else:
+                self.log_error(f'Unable set configuration channels for server {self.hostname}. Please check logs')
+
+    def system_set_group_membership(self, sgid, fatal=True):
+        """
+        Assign system to systemgroup
+
+        :param sgid: the group ID
+        :param fatal: whether to fatal error
+        :return:
+        """
+        try:
+            return self.client.system.setGroupMembership(self.session, self.systemid, int(sgid), True)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: system.setGroupMemebership')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  system_id:  {self.systemid}')
+            self.log_debug(f'  group_id:   {sgid}')
+            if fatal:
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(f'Unable to assign group membership for server {self.hostname}.')
+            else:
+                self.log_error(f'Unable to assign group membership for server {self.hostname}. Please check logs')
+
 
     """
     API call related to channel.software
@@ -848,6 +975,19 @@ class SMTools:
             self.log_debug('  cron:    {}'.format(schedule))
             self.log_debug("Error: \n{}".format(err))
             self.minor_error("Unable to set schedule \'{}\' for repository {}".format(schedule, repo))
+
+    def channel_software_listsubscribedsystems(self, channel):
+        try:
+            return self.client.channel.software.listSubscribedSystems(self.session, channel)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: channel.software.listSubscribedSystems')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  channel: {channel}')
+            self.log_debug(f"Error: \n{err}")
+            self.minor_error(f"Unable to get subscribed systems for channel {channel}")
+
+
+
 
     def get_labels_all_basechannels(self):
         all_channels = None
@@ -1013,6 +1153,91 @@ class SMTools:
             message = ('Unable to update environment {} in the project {}.'.format(environment, project))
             self.fatal_error(message)
 
+    def contentmanagement_listprojectsources(self, project):
+        """
+        List all sources associated with the given project.
+
+        Provides a list of all the sources utilized by the specified project through
+        a call to the content management API. In case of an error during the API
+        invocation, logs detailed information and raises a fatal error with an
+        appropriate message.
+
+        :param project: Identifier or name of the project for which the sources
+            need to be retrieved
+        :type project: str
+
+        :return: The list of sources associated with the specified project, as
+            returned by the API
+        :rtype: Any
+        """
+        try:
+            return self.client.contentmanagement.listProjectSources(self.session, project)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: contentmanagement.listProjectsources')
+            self.log_debug('Value passed: ')
+            self.log_debug('  project: {}'.format(project))
+            self.log_debug("Error: \n{}".format(err))
+            message = ('Unable to list sources used in the project {}.'.format(project))
+            self.fatal_error(message)
+
+    def contentmanagement_removeenvironment(self, project, environment):
+        """
+        Remove a specified environment from a given project using the
+        content management system. This method utilizes the session and
+        client to perform the operation and logs the process and any errors
+        encountered.
+
+        :param project: The name of the project from which the environment
+            will be removed.
+        :type project: str
+        :param environment: The name of the environment to be removed.
+        :type environment: str
+        :return: The response from the `removeEnvironment` API call.
+        :rtype: Any
+        :raises xmlrpc.client.Fault: If there is an XML-RPC fault during
+            the API call.
+        :raises RuntimeError: If there is an error removing the environment,
+            logs the error and raises a fatal error message.
+        """
+        try:
+            return self.client.contentmanagement.removeEnvironment(self.session, project, environment)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: contentmanagement.removeEnvironment')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  project: {project}')
+            self.log_debug(f'  environment: {environment}')
+            self.log_debug(f"Error: \n{err}")
+            message = (f'Unable to remove environment {environment} used in the project {project}.')
+            self.fatal_error(message)
+
+    def contentmanagement_removeproject(self, project):
+        """
+        Removes a specified project from content management.
+
+        This method utilizes an XML-RPC client to remove the given project within the
+        current session. It also logs the details of the operation, including the
+        project identifier and any associated errors if the operation fails. If the
+        removal is unsuccessful, a fatal error is raised with an appropriate message.
+
+        :param project: The project identifier to be removed.
+        :type project: str
+        :return: The result of the project removal operation.
+        :rtype: Any
+        :raises FatalError: If the project removal operation fails.
+        """
+        try:
+            return self.client.contentmanagement.removeProject(self.session, project)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: contentmanagement.removeEnvironment')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  project: {project}')
+            self.log_debug(f"Error: \n{err}")
+            message = (f'Unable to remove project {project}.')
+            self.fatal_error(message)
+
+
+
+
     """
     API call related to configchannel
     """
@@ -1083,11 +1308,71 @@ class SMTools:
             message = ('Unable to get list of systems assgined to system group {}'.format(group))
             self.log_error(message)
 
+    def systemgroup_get_details(self, group, fatal=True):
+        """
+        get the detail of the given systemgroup
+        :param group:
+        :return:
+        """
+        try:
+            return self.client.systemgroup.getDetails(self.session, group)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: systemgroup.getDetails')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  Group:          {group}')
+            self.log_debug(f"Error: \n{err}")
+            message = (f'Unable to get details of system group {group}')
+            if fatal:
+                self.fatal_error(message)
+            else:
+                self.log_error(message)
+                return None
+
+    def systemgroup_list_all_groups(self):
+        try:
+            return self.client.systemgroup.listAllGroups(self.session)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: systemgroups.listAllGroups')
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error('Unable to get list of systemgroups')
+
+    def systemgroup_add_or_remove_systems(self, group, systems, add=True):
+        try:
+            return self.client.systemgroup.addOrRemoveSystems(self.session, group, systems, add)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: systemgroups.addOrRemoveSystems')
+            self.log_debug(f'  Group:      {group}')
+            self.log_debug(f'  SystemIds:  {systems}')
+            self.log_debug(f'  Add:        {add}')
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error('Unable to add or remove systems to systemgroup')
+
+    def systemgroup_create(self, group, description):
+        try:
+            return self.client.systemgroup.create(self.session, group, description)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: systemgroups.create')
+            self.log_debug(f'  Group:        {group}')
+            self.log_debug(f'  Description:  {description}')
+            self.log_debug("Error: \n{}".format(err))
+            self.fatal_error('Unable create systemgroup')
+
     """
-    API call related to kickstart.keys
+    API call related to kickstart
     """
 
     def kickstart_keys_listallkeys(self):
+        """
+        Fetches and returns a list of all kickstart keys.
+
+        This method interacts with the RPC client to retrieve all kickstart
+        keys, handles potential exceptions, and logs debug information when
+        needed.
+
+        :return: A list of kickstart keys retrieved from the RPC client
+        :rtype: list
+        :raises FatalError: If the operation fails due to an RPC client fault
+        """
         try:
             return self.client.kickstart.keys.listAllKeys(self.session)
         except xmlrpc.client.Fault as err:
@@ -1095,6 +1380,85 @@ class SMTools:
             self.log_debug("Error: \n{}".format(err))
             message = 'Unable to get a list of keys.'
             self.fatal_error(message)
+
+    def kickstart_tree_list(self, channel):
+        """
+        Fetches and lists all kickstart tree distributions associated with the specified channel.
+
+        This function interacts with the external kickstart tree API to retrieve a list of
+        distributions for a given channel. It logs the API call details for debugging
+        purposes and handles any XML-RPC faults that might occur during the process.
+
+        :param channel: The software channel whose associated kickstart tree distributions
+            are to be listed.
+        :type channel: str
+        :return: A list of distribution details from the kickstart tree API response.
+        :rtype: list
+        :raises xmlrpc.client.Fault: If an XML-RPC fault occurs during the API call.
+        """
+        try:
+            return self.client.kickstart.tree.list(self.session, channel)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: kickstart.tree.list')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  channel:    {channel}')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(f'Unable to list distributions for channel {channel}')
+
+    def kickstart_list_kickstarts(self):
+        """"""
+        try:
+            return self.client.kickstart.listKickstarts(self.session)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: kickstart.listKickstarts')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error('Unable to list all profiles')
+
+    def kickstart_tree_deletetreeandprofiles(self, label):
+        """
+        Deletes a distribution tree and its associated profiles identified by the
+        provided label.
+
+        This method attempts to delete the specified distribution tree and all
+        associated profiles in the system. If the operation encounters an issue
+        or fails, debug logs will be produced, and a fatal error will be raised.
+
+        :param label: The label of the distribution tree to be deleted.
+        :type label: str
+        :return: Result of the deletion operation.
+        :rtype: Any
+        :raises xmlrpc.client.Fault: If an XML-RPC error occurs during the operation.
+        """
+        try:
+            return self.client.kickstart.tree.deleteTreeAndProfiles(self.session, label)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: kickstart.tree.deleteTreeAndProfiles')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  label:    {label}')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(f'Unable to delete distribution and profiles for {label}')
+
+    def kickstart_deleteprofile(self, label):
+        """
+        Deletes a kickstart profile with the specified label using a remote API call. This
+        method facilitates interaction with an external server to remove a specific profile
+        identified by the label. Logging is used to capture debug information and errors.
+
+        :param label: The identifier of the kickstart profile to delete
+        :type label: str
+        :return: The server's response from the delete profile operation
+        :rtype: Any
+        :raises xmlrpc.client.Fault: Raised if the API call encounters an issue during execution
+        """
+        try:
+            return self.client.kickstart.deleteProfile(self.session, label)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: kickstart.deleteProfile')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  label:    {label}')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(f'Unable to delete profile for {label}')
+
 
     """
     API call related to schedule
@@ -1138,3 +1502,63 @@ class SMTools:
             self.log_debug("Error: \n{}".format(err))
             message = 'Unable to get events in failed for id {}. The error is: \n{}'.format(action_id, err)
             self.fatal_error(message)
+
+    """
+    API call related to image
+    """
+    def image_profile_create(self, image_profile_name, image_profile_type, software_channel_store_label,
+                             profile_path_arg, activation_key, final_kiwi_options_param):
+        try:
+            return self.client.image.profile.create(self.session, image_profile_name, image_profile_type,
+                                                    software_channel_store_label, profile_path_arg, activation_key,
+                                                    final_kiwi_options_param)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: image.profile.create')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  Label:          {image_profile_name}')
+            self.log_debug(f'  Type:           {image_profile_type}')
+            self.log_debug(f'  Store-label:    {software_channel_store_label}')
+            self.log_debug(f'  Kiwi-path:      {profile_path_arg}')
+            self.log_debug(f'  Activation-key: {activation_key}')
+            self.log_debug(f'  Kiwi-options:   {final_kiwi_options_param}')
+            self.log_debug(f"Error: \n{err}")
+            message = f'Unable to create image profile {image_profile_name}. The error is: \n{err}'
+            self.fatal_error(message)
+
+    def image_schedule_image_build(self, profile_label, version, build_host_id, date):
+        try:
+            return self.client.image.scheduleImageBuild(self.session, profile_label, version, build_host_id, date)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: image.scheduleImageBuild')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  Label:          {profile_label}')
+            self.log_debug(f'  Version:        {version}')
+            self.log_debug(f'  Build-host-id:  {build_host_id}')
+            self.log_debug(f'  data:           {date}')
+            self.log_debug(f"Error: \n{err}")
+            message = f'Unable to schedule image build {profile_label}. The error is: \n{err}'
+            self.fatal_error(message)
+
+    """
+    API call related to activationkey
+    """
+    def activationkey_listactivationkeys(self):
+        try:
+            return self.client.activationkey.listActivationKeys(self.session)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: activationkey.listActivationKeys')
+            self.log_debug(f"Error: \n{err}")
+            message = f'Unable to list activationkeys. The error is: \n{err}'
+            self.fatal_error(message)
+
+    def activationkey_delete(self, key):
+        try:
+            return self.client.activationkey.delete(self.session, key)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: activationkey.delete')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  key:   {key}')
+            self.log_debug(f"Error: \n{err}")
+            message = f'Unable to delete activationkey {key}. The error is: \n{err}'
+            self.fatal_error(message)
+

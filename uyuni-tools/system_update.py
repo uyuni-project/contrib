@@ -244,15 +244,10 @@ def check_for_sp_migration():
     """
     Check if a sp migration is released for this server
     """
-    current_version = None
     current_bc = smt.system_getsubscribedbasechannel().get('label')
-    if "sle" not in current_bc or "opensuse" not in current_bc:
+    if "sle" not in current_bc and "opensuse" not in current_bc:
         smt.log_info("System is not running SLE. SP Migration not possible")
         return False, ""
-    if "sp" not in current_bc:
-        current_sp = "sp0"
-    else:
-        current_sp = "sp" + str(current_bc.split("sp")[1].split("-")[0])
     all_bc = smt.get_labels_all_basechannels()
     if smtools.CONFIGSM['maintenance']['sp_migration_project']:
         for project, new_pr in smtools.CONFIGSM['maintenance']['sp_migration_project'].items():
@@ -274,13 +269,6 @@ def check_for_sp_migration():
                             smt.log_info("Given SP Migration path is not available. There are no channels available.")
                             return False, ""
     if smtools.CONFIGSM['maintenance']['sp_migration']:
-        #if "11-" in current_bc:
-        #    current_version = "sles11-"
-        #elif "12-" in current_bc:
-        #    current_version = "sles12-"
-        #elif "15-" in current_bc:
-        #    current_version = "sles15-"
-        #current_version += current_sp
         for key, value in smtools.CONFIGSM['maintenance']['sp_migration'].items():
             if key == current_bc and not server_is_exception(value):
                 return True, value
@@ -426,7 +414,7 @@ def main():
         parser.add_argument('-s', '--server', help='name of the server to receive config update. Required')
         parser.add_argument("-n", "--noreboot", action="store_true", default=0,
                             help="Do not reboot server after patching or supportpack upgrade.")
-        parser.add_argument("-d", "-nodryrun", action="store_true", default=0,
+        parser.add_argument("-d", "--nodryrun", action="store_true", default=0,
                             help="Do not run a dry run before performing a SP migration.")
         parser.add_argument("-f", "--forcereboot", action="store_true", default=0,
                             help="Force a reboot server after patching or supportpack upgrade.")
