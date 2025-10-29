@@ -83,10 +83,10 @@ def add_client_tools_channels(client, key, extensions, dry_run):
 def main():
     """Main function to run the entire workflow."""
     parser = argparse.ArgumentParser(description="A script to add client tools channels to SUSE Manager.",
-                                     formatter_class=argparse.RawTextHelpFormatter)
+                                    formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--no-dry-run", action="store_true", 
                         help="Perform actual changes instead of a dry run.\n"
-                             "The script runs in dry-run mode by default.")
+                            "The script runs in dry-run mode by default.")
     args = parser.parse_args()
     dry_run = not args.no_dry_run
 

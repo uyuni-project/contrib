@@ -12,12 +12,16 @@
 # This script assumes that new client tools have been already synced in your SUSE Multi-Linux Manager and Uyuni instance. One can use sync_client_tools.py script to sync the new client tools.
 #
 # 2025-10-14 Abid - initial release.
+# 2025-10-29 Michael Brookhuis - added --frozen parameter to freeze channels from newer patches in clm projects.
+
 
 """
 import xmlrpc.client
 import time
 import sys
 import argparse
+import random
+from datetime import datetime
 from argparse import RawTextHelpFormatter
 
 # --- Configuration ---
@@ -50,7 +54,7 @@ def list_and_find_base_channels(client, key):
     base_channels = [ch["label"] for ch in channels if not ch.get("parent_label")]
     return base_channels
 
-def process_clm_project(client, key, project_label, base_channels, dry_run):
+def process_clm_project(client, key, project_label, base_channels, dry_run, frozen):
     """Processes a single CLM project, updating channels and promoting environments."""
     log(f"\n=== Processing Project: {project_label} ===")
 
@@ -106,40 +110,54 @@ def process_clm_project(client, key, project_label, base_channels, dry_run):
     all_envs = client.contentmanagement.listProjectEnvironments(key, project_label)
     
     if not all_envs:
-        log("No environments found for this project.")
+        log("[WARNING] No environments found for this project.")
         return
 
     first_env_label = all_envs[0]['label']
+
+    if frozen and not dry_run:
+        log("Parameter frozen is giving, not updating channels with newer patches by adding a new filter based on last build date.")
+        project_data = client.contentmanagement.lookupProject(key, project_label)
+        dt_object = datetime.strptime(str(project_data.get('lastBuildDate')), '%Y%m%dT%H:%M:%S')
+        filter_time = dt_object.strftime("%Y-%m-%dT%H:%M:%SZ")
+        random_number = random.randint(1111,9999)
+        create_filter = client.contentmanagement.createFilter(key, f"frozen_{project_label}_{random_number}", "deny", "erratum", {'matcher': "greatereq", 'field': "issue_date", 'value': filter_time})
+        added_filter = client.contentmanagement.attachFilter(key, project_label, create_filter['id'])
+        log(f"Filter -> {create_filter.get('name')} has been created and attached to project {project_label} to freeze the channels from newer patches.")
+    else:
+        log("Parameter frozen is not given, newer patches will be promoted in the channels")
+
+    sources = client.contentmanagement.listProjectSources(key, project_label)
+    needsbuilding = any(s.get('state', '').upper() in ('ATTACHED', 'DETACHED') for s in sources)
     
-    for i, env in enumerate(all_envs):
-        env_label = env['label']
-        is_first_env = (env_label == first_env_label)
+    if needsbuilding:
+        for i, env in enumerate(all_envs):
+            env_label = env['label']
+            is_first_env = (env_label == first_env_label)
 
-        if is_first_env:
-                description = "Build for new client tools channels."
-                if dry_run:
-                    dry_run_log(f"Would build initial environment {env_label}")
-                else:
-                    log(f"Building initial environment (label: {env_label})")
-                    client.contentmanagement.buildProject(key, project_label, description)
-                    if not wait_for_completion(client, key, project_label, env_label):
-                        log("Build failed or timed out. Aborting promotion process.")
-                        return
-        else:
-            prev_env_label = env['previousEnvironmentLabel']
-            if dry_run:
-                dry_run_log(f"Would promote the environment {prev_env_label} to {env_label}")
+            if is_first_env:
+                    description = "Build for new client tools channels."
+                    if dry_run:
+                        dry_run_log(f"Would build initial environment {env_label}")
+                    else:
+                        log(f"Building initial environment (label: {env_label})")
+                        client.contentmanagement.buildProject(key, project_label, description)
+                        if not wait_for_completion(client, key, project_label, env_label):
+                            log("Build failed or timed out. Aborting promotion process.")
+                            return
             else:
-                log(f"Promoting the environment {prev_env_label} to {env_label}")
-                client.contentmanagement.promoteProject(key, project_label, prev_env_label)
-                if not wait_for_completion(client, key, project_label, prev_env_label):
-                    log("Promotion failed or timed out. Aborting promotion process.")
-                    return
-        
-        if not dry_run and i < len(all_envs) - 1:
-            log("Waiting 30 seconds before next promotion...")
-            time.sleep(30)
-
+                prev_env_label = env['previousEnvironmentLabel']
+                if dry_run:
+                    dry_run_log(f"Would promote the environment {prev_env_label} to {env_label}")
+                else:
+                    log(f"Promoting the environment {prev_env_label} to {env_label}")
+                    client.contentmanagement.promoteProject(key, project_label, prev_env_label)
+                    if not wait_for_completion(client, key, project_label, prev_env_label):
+                        log("Promotion failed or timed out. Aborting promotion process.")
+                        return
+            if not dry_run and i < len(all_envs) - 1:
+                log("Waiting 30 seconds before next promotion...")
+                time.sleep(30)
 
 def wait_for_completion(client, key, project_label, env_label, wait_interval=30):
     """Polls the project environment status until it is 'built' or an error occurs."""
@@ -208,7 +226,6 @@ def process_activation_keys(client, key, activation_keys, dry_run):
         else:
             log(f"Could not determine base channel for key {ak_key}. Skipping update.")
             continue
-
         if dry_run:
             if old_tools:
                 dry_run_log(f"Would remove the old client tools channels {old_tools} from key {ak_key}")
@@ -243,25 +260,40 @@ Usage:
 
     Examples:
     - Process a single CLM project and all its environments:
-      python3 script_name.py -c clmprojects clm2
+      python3 migrate_to_new_client_tools.py -c clmprojects clm2 --frozen
+
+    - Process a single CLM project and all its environments:
+      python3 migrate_to_new_client_tools.py -c clmprojects clm2  --frozen --no-dry-run
 
     - Process all CLM projects:
-      python3 script_name.py -c clmprojects all
+      python3 migrate_to_new_client_tools.py -c clmprojects all
 
     - Process a single activation key:
-      python3 script_name.py -c activationkeys 1-sles15sp4-x86_64
+      python3 migrate_to_new_client_tools.py -c activationkeys 1-sles15sp4-x86_64
 
     - Process all autoinstallation profiles with actual changes:
-      python3 script_name.py -c autoinstallprofiles all --no-dry-run
+      python3 migrate_to_new_client_tools.py -c autoinstallprofiles all --no-dry-run
     ''')
     
     parser.add_argument("-c", "--component", choices=['clmprojects', 'activationkeys', 'autoinstallprofiles'], required=True, help="The component to process.")
     parser.add_argument("labels", nargs='+', help="The label(s) of the component to process, or 'all'.")
     parser.add_argument("--no-dry-run", action='store_true', help="Perform actual changes instead of a dry run.")
-    
+    parser.add_argument("--frozen", action='store_true', default=False, help="(CLM only) - If fixed channels are used, don't update the channels with newer patches in clm projects. Defaults to 'True'.")
+
     args = parser.parse_args()
 
+    # --- New Warning Check ---
+    if args.component != 'clmprojects' and args.frozen:
+        print(f"[WARNING] The **--frozen** argument is only applicable to 'clmprojects' and has no effect for '{args.component}'.")
+    # -------------------------
+
     dry_run = not args.no_dry_run
+
+    if dry_run:
+        print(f"=========================================================")
+        print(f"[INFO] RUNNING IN DRY-RUN MODE. NO CHANGES WILL BE MADE.")
+        print(f"=========================================================")
+
     labels_to_process = args.labels[0].split(',') if args.labels[0].lower() != 'all' else ['all']
 
     client, key = connect_and_login()
@@ -280,7 +312,7 @@ Usage:
                 if not any(p['label'] == project_label for p in client.contentmanagement.listProjects(key)):
                     log(f"Project '{project_label}' not found. Skipping.")
                     continue
-                process_clm_project(client, key, project_label, base_channels, dry_run)
+                process_clm_project(client, key, project_label, base_channels, dry_run, args.frozen)
 
         elif args.component == 'activationkeys':
             if 'all' in labels_to_process:
