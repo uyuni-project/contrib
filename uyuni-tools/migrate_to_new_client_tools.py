@@ -13,6 +13,7 @@
 #
 # 2025-10-14 Abid - initial release.
 # 2025-10-29 Michael Brookhuis - added --frozen parameter to freeze channels from newer patches in clm projects.
+# 2025-10-20 Abid - Added the promote parameter to promote only if specified.
 
 
 """
@@ -54,7 +55,7 @@ def list_and_find_base_channels(client, key):
     base_channels = [ch["label"] for ch in channels if not ch.get("parent_label")]
     return base_channels
 
-def process_clm_project(client, key, project_label, base_channels, dry_run, frozen):
+def process_clm_project(client, key, project_label, base_channels, dry_run, promote, frozen):
     """Processes a single CLM project, updating channels and promoting environments."""
     log(f"\n=== Processing Project: {project_label} ===")
 
@@ -116,7 +117,7 @@ def process_clm_project(client, key, project_label, base_channels, dry_run, froz
     first_env_label = all_envs[0]['label']
 
     if frozen and not dry_run:
-        log("Parameter frozen is giving, not updating channels with newer patches by adding a new filter based on last build date.")
+        log("Parameter frozen is provided, not updating channels with newer patches by adding a new filter based on last build date.")
         project_data = client.contentmanagement.lookupProject(key, project_label)
         dt_object = datetime.strptime(str(project_data.get('lastBuildDate')), '%Y%m%dT%H:%M:%S')
         filter_time = dt_object.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -127,9 +128,12 @@ def process_clm_project(client, key, project_label, base_channels, dry_run, froz
     else:
         log("Parameter frozen is not given, newer patches will be promoted in the channels")
 
-    sources = client.contentmanagement.listProjectSources(key, project_label)
-    needsbuilding = any(s.get('state', '').upper() in ('ATTACHED', 'DETACHED') for s in sources)
-    
+    # Only promote if specified
+    needsbuilding = False
+    if promote:
+        sources = client.contentmanagement.listProjectSources(key, project_label)
+        needsbuilding = any(s.get('state', '').upper() in ('ATTACHED', 'DETACHED') for s in sources)
+    # Only build/promote if there are changes
     if needsbuilding:
         for i, env in enumerate(all_envs):
             env_label = env['label']
@@ -260,13 +264,13 @@ Usage:
 
     Examples:
     - Process a single CLM project and all its environments:
-      python3 migrate_to_new_client_tools.py -c clmprojects clm2 --frozen
+      python3 migrate_to_new_client_tools.py -c clmprojects clm2 --promote --frozen --no-dry-run
 
-    - Process a single CLM project and all its environments:
+    - Process a single CLM project but don't promote changes to environments:
       python3 migrate_to_new_client_tools.py -c clmprojects clm2  --frozen --no-dry-run
 
-    - Process all CLM projects:
-      python3 migrate_to_new_client_tools.py -c clmprojects all
+    - Process all CLM projects but don't promote changes to environments:
+      python3 migrate_to_new_client_tools.py -c clmprojects all --frozen --no-dry-run
 
     - Process a single activation key:
       python3 migrate_to_new_client_tools.py -c activationkeys 1-sles15sp4-x86_64
@@ -277,15 +281,16 @@ Usage:
     
     parser.add_argument("-c", "--component", choices=['clmprojects', 'activationkeys', 'autoinstallprofiles'], required=True, help="The component to process.")
     parser.add_argument("labels", nargs='+', help="The label(s) of the component to process, or 'all'.")
+    parser.add_argument("--promote", action='store_true', default=False, help="(CLM only) - Only promote changes to environments if mentioned explictly'.")
+    parser.add_argument("--frozen", action='store_true', default=False, help="(CLM only) - If fixed channels are used, don't update the channels with newer patches in clm projects. Defaults to 'False'.")
     parser.add_argument("--no-dry-run", action='store_true', help="Perform actual changes instead of a dry run.")
-    parser.add_argument("--frozen", action='store_true', default=False, help="(CLM only) - If fixed channels are used, don't update the channels with newer patches in clm projects. Defaults to 'True'.")
 
     args = parser.parse_args()
 
-    # --- New Warning Check ---
     if args.component != 'clmprojects' and args.frozen:
         print(f"[WARNING] The **--frozen** argument is only applicable to 'clmprojects' and has no effect for '{args.component}'.")
-    # -------------------------
+    if args.component != 'clmprojects' and args.promote:
+        print(f"[WARNING] The **--promote** argument is only applicable to 'clmprojects' and has no effect for '{args.component}'.")
 
     dry_run = not args.no_dry_run
 
@@ -312,7 +317,7 @@ Usage:
                 if not any(p['label'] == project_label for p in client.contentmanagement.listProjects(key)):
                     log(f"Project '{project_label}' not found. Skipping.")
                     continue
-                process_clm_project(client, key, project_label, base_channels, dry_run, args.frozen)
+                process_clm_project(client, key, project_label, base_channels, dry_run, args.promote, args.frozen)
 
         elif args.component == 'activationkeys':
             if 'all' in labels_to_process:
