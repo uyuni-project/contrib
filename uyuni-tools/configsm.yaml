@@ -1,8 +1,9 @@
 suman:
     server: <SUSE Manager Server FQDN>
-    user: <USER with enough righst>
+    user: <USER with enough rights>
     password: <password of the above user>
     timeout: 1200
+    ssl_certificate_check: True
 
 smtp:
    # sendmail: True is a mail should be send for minor and major errors. False if no mail should be send     
