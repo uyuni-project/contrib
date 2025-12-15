@@ -1,36 +1,29 @@
-#!/usr/bin/python3
-import xmlrpc.client
-import sys
-from socket import getfqdn
-from datetime import datetime
-import pdb
-MANAGER_USER = "infobot"
-MANAGER_PASS = "infobot321"
-MANAGER_URL = "http://susemanager.suselab.localdomain/rpc/api"
-
+#!/usr/bin/env python3
+"""
+SUSE Manager / Uyuni API - Schedule Reboot
+"""
+import argparse, xmlrpc.client, ssl, getpass, sys, datetime
 
 def main():
-    args = sys.argv[1:]
-    session_key = None
-    if len(args) != 1:
-        print(f'Usage: {sys.argv[0]} <system ID to be rebooted>')
-        exit(1)
-    else:
-        id_machine = sys.argv[1]
-        print('Requesting reboot for system {id_machine}')
+    p = argparse.ArgumentParser()
+    p.add_argument('-s', '--server'); p.add_argument('--url'); p.add_argument('-u', '--user', required=True)
+    p.add_argument('-p', '--password'); p.add_argument('--sid', type=int, required=True)
+    p.add_argument('--verify', action='store_true')
+    args = p.parse_args()
 
-    with xmlrpc.client.ServerProxy(MANAGER_URL) as proxy:
-        try:
-            session_key = proxy.auth.login(MANAGER_USER, MANAGER_PASS)
-            earliest_occurrance = xmlrpc.client.DateTime(datetime.now())
-            print(f"job_id: {proxy.system.scheduleReboot(session_key, int(id_machine), earliest_occurrance)}")
-            if (session_key) is not None:
-                proxy.auth.logout(session_key)
-        except ConnectionRefusedError as e:
-            print(f'Connection error: {e}')
-        except ValueError as e:
-            print(f'The system ID can only be numeric!')
-        except xmlrpc.client.Fault as e:
-            print(f'Error submitting job: {e}')
-main()
+    if args.url: api_url = args.url
+    elif args.server: api_url = f"https://{args.server}/rpc/api"
+    else: print("[!] Error: Provide -s/--server or --url"); sys.exit(1)
 
+    pwd = args.password or getpass.getpass()
+    ctx = ssl.create_default_context()
+    if not args.verify: ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+
+    try:
+        c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
+        aid = c.system.scheduleReboot(k, args.sid, datetime.datetime.now())
+        print(f"[+] Reboot Scheduled. Action ID: {aid}")
+        c.auth.logout(k)
+    except Exception as e: print(e)
+
+if __name__ == "__main__": main()

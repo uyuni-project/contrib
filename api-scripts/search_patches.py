@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-SUSE Manager / Uyuni API - List Custom Info
+SUSE Manager / Uyuni API - Search Patches (Errata) by CVE
 """
 import argparse, xmlrpc.client, ssl, getpass, sys
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('-s', '--server'); p.add_argument('--url'); p.add_argument('-u', '--user', required=True)
-    p.add_argument('-p', '--password'); p.add_argument('--sid', type=int, required=True)
+    p.add_argument('-p', '--password'); p.add_argument('--cve', required=True)
     p.add_argument('--verify', action='store_true')
     args = p.parse_args()
 
@@ -21,17 +21,16 @@ def main():
 
     try:
         c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
-        vals = c.system.getCustomValues(k, args.sid)
+        print(f"[*] Searching errata for CVE: {args.cve}")
+        results = c.errata.findByCve(k, args.cve)
         
-        if isinstance(vals, dict):
-            for key, val in vals.items(): print(f"{key}: {val}")
-        elif isinstance(vals, list):
-            for v in vals:
-                # Handle varying dict keys for label
-                lbl = v.get('key_label') or v.get('label') or 'Unknown'
-                val = v.get('value', '')
-                print(f"{lbl}: {val}")
+        print(f"{'Advisory':<20} | {'Synopsis'}")
+        print("-" * 70)
+        for r in results:
+            syn = r.get('synopsis') or r.get('advisory_synopsis') or ""
+            print(f"{r.get('advisory_name'):<20} | {syn[:48]}")
         
+        print(f"\nFound {len(results)} matches.")
         c.auth.logout(k)
     except Exception as e: print(f"Error: {e}")
 

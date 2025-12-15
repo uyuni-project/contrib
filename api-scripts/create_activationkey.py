@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-SUSE Manager / Uyuni API - List Custom Info
+SUSE Manager / Uyuni API - Create Activation Key
 """
 import argparse, xmlrpc.client, ssl, getpass, sys
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('-s', '--server'); p.add_argument('--url'); p.add_argument('-u', '--user', required=True)
-    p.add_argument('-p', '--password'); p.add_argument('--sid', type=int, required=True)
-    p.add_argument('--verify', action='store_true')
+    p.add_argument('-p', '--password'); p.add_argument('--key-label', required=True); p.add_argument('--base-channel', required=True)
+    p.add_argument('--desc', default=""); p.add_argument('--verify', action='store_true')
     args = p.parse_args()
 
     if args.url: api_url = args.url
@@ -21,18 +21,9 @@ def main():
 
     try:
         c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
-        vals = c.system.getCustomValues(k, args.sid)
-        
-        if isinstance(vals, dict):
-            for key, val in vals.items(): print(f"{key}: {val}")
-        elif isinstance(vals, list):
-            for v in vals:
-                # Handle varying dict keys for label
-                lbl = v.get('key_label') or v.get('label') or 'Unknown'
-                val = v.get('value', '')
-                print(f"{lbl}: {val}")
-        
+        res = c.activationkey.create(k, args.key_label, args.desc, args.base_channel, 0, [])
+        print(f"[+] Key Created: {res}")
         c.auth.logout(k)
-    except Exception as e: print(f"Error: {e}")
+    except Exception as e: print(e)
 
 if __name__ == "__main__": main()

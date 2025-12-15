@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-SUSE Manager / Uyuni API - List Custom Info
+SUSE Manager / Uyuni API - Schedule Highstate
 """
-import argparse, xmlrpc.client, ssl, getpass, sys
+import argparse, xmlrpc.client, ssl, getpass, sys, datetime
 
 def main():
     p = argparse.ArgumentParser()
@@ -21,18 +21,9 @@ def main():
 
     try:
         c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
-        vals = c.system.getCustomValues(k, args.sid)
-        
-        if isinstance(vals, dict):
-            for key, val in vals.items(): print(f"{key}: {val}")
-        elif isinstance(vals, list):
-            for v in vals:
-                # Handle varying dict keys for label
-                lbl = v.get('key_label') or v.get('label') or 'Unknown'
-                val = v.get('value', '')
-                print(f"{lbl}: {val}")
-        
+        aid = c.system.scheduleApplyHighstate(k, args.sid, datetime.datetime.now(), False)
+        print(f"[+] Highstate Scheduled. Action ID: {aid}")
         c.auth.logout(k)
-    except Exception as e: print(f"Error: {e}")
+    except Exception as e: print(e)
 
 if __name__ == "__main__": main()

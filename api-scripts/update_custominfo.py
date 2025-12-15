@@ -1,39 +1,50 @@
-#!/usr/bin/python3
-import xmlrpc.client
-import sys
-from socket import getfqdn
-import pdb
-MANAGER_USER = "infobot"
-MANAGER_PASS = "infobot321"
-MANAGER_URL = "http://susemanager.suselab.localdomain/rpc/api"
+#!/usr/bin/env python3
+"""
+SUSE Manager / Uyuni API - Update Custom Info
+"""
+import argparse, xmlrpc.client, ssl, getpass, sys
 
 def main():
-	session_key = None
-	args = sys.argv[1:]
-	if len(args) != 3:
-		print(f'Usage: {sys.argv[0]} <hostname> <key> <value>')
-		exit(1)
-	else:
-		hostname = sys.argv[1]
-		field_name = sys.argv[2]
-		field_value = sys.argv[3]
-		try:
-			with xmlrpc.client.ServerProxy(MANAGER_URL) as proxy:
-				session_key = proxy.auth.login(MANAGER_USER, MANAGER_PASS)
-				hosts = proxy.system.getId(session_key, hostname)
-				system_id = hosts[0].get('id')
-				try:
-					print(f'Updating {hostname} with system ID {system_id}...')
-					proxy.system.set_CustomValues(session_key,system_id,{field_name: field_value})
-				except Exception as e:
-					print("{e} Key does not exist, creating...")
-					proxy.system.custominfo.createKey(session_key, field_name, field_name)
-				
-				proxy.system.set_CustomValues(session_key,system_id,{field_name: field_value})
-				print(f"Key {field_name}={field_value} set successfully!")
-				if (session_key) is not None:
-					proxy.auth.logout(session_key)
-		except ConnectionRefusedError as e:
-			print(f'Connection error: {e}')
+    p = argparse.ArgumentParser()
+    p.add_argument('-s', '--server'); p.add_argument('--url'); p.add_argument('-u', '--user', required=True)
+    p.add_argument('-p', '--password'); p.add_argument('--sid', type=int, required=True)
+    p.add_argument('--key', required=True); p.add_argument('--value', required=True)
+    p.add_argument('--verify', action='store_true')
+    args = p.parse_args()
 
-main()
+    if args.url: api_url = args.url
+    elif args.server: api_url = f"https://{args.server}/rpc/api"
+    else: print("[!] Error: Provide -s/--server or --url"); sys.exit(1)
+
+    pwd = args.password or getpass.getpass()
+    ctx = ssl.create_default_context()
+    if not args.verify: ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+
+    try:
+        c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
+        print(f"[*] Setting Custom Info for System {args.sid}...")
+        print(f"    Key:   {args.key}")
+        print(f"    Value: {args.value}")
+
+        payload = {args.key: args.value}
+
+        try:
+            c.system.setCustomValues(k, args.sid, payload)
+            print("[+] Custom info updated successfully.")
+        except xmlrpc.client.Fault as f:
+            if "not defined" in f.faultString:
+                print(f"[*] Key '{args.key}' does not exist. Creating it now...")
+                try:
+                    c.system.custominfo.createKey(k, args.key, "Created via API")
+                    print(f"[+] Key '{args.key}' created.")
+                    c.system.setCustomValues(k, args.sid, payload)
+                    print("[+] Custom info updated successfully on retry.")
+                except Exception as creation_err:
+                    print(f"[!] Failed to create key: {creation_err}")
+            else:
+                print(f"[!] API Fault: {f.faultString}")
+
+        c.auth.logout(k)
+    except Exception as e: print(e)
+
+if __name__ == "__main__": main()

@@ -1,110 +1,67 @@
-#!/usr/bin/python3
-#
-#  getresults_sm.py - fetches results of a batch remote command execution from SUSE Manager
-#
-#  Author: Erico Mendonca (emendonca@suse.com)
-#  Sep/2024 (first released on Jan/2014)
-#  Version: 2.0 
-#  
+#!/usr/bin/env python3
+"""
+SUSE Manager / Uyuni API - Get Results from Job CSV
+Reads jobs.csv, fetches results, writes to output.csv
+"""
+import argparse, xmlrpc.client, ssl, getpass, sys, csv, os
 
-import xmlrpc.client
-import sys
-import getopt
-import string
-import getpass
-from datetime import datetime
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument('-s', '--server'); p.add_argument('--url'); p.add_argument('-u', '--user', required=True)
+    p.add_argument('-p', '--password')
+    p.add_argument('--jobs', default='jobs.csv', help="Input CSV file (hostname,job_id)")
+    p.add_argument('--verify', action='store_true')
+    args = p.parse_args()
 
-def dequote(s):
-	s=s.strip()
-	if s.startswith( ("'", '"') ) and s.endswith( ("'",'"') ) and (s[0] == s[-1]):
-		s = s[1:-1]
-	return s
+    if args.url: api_url = args.url
+    elif args.server: api_url = f"https://{args.server}/rpc/api"
+    else: print("[!] Error: Provide -s/--server or --url"); sys.exit(1)
 
-def usage():
-	print("Usage: " + sys.argv[0] + " \
-		\n\n \
-		\t-h|--help\t\t\tShows this help text\n \
-		\t-u|--user=<username with write access>\t\t\tSpecifies the API user\n \
-		\t-p|--password\t\t\tSpecifies the API password\n \
-		\t-W\t\t\tAsks for the API password\n \
-		\t-R|--resultsfile=<jobs list CSV file>\t\t\tFile containing the corresponding hostnames and jobs, one per line\n \
-		\t-L|--url=<url XMLRPC>\t\t\tXMLRPC connection URL\n \
-		\t-d|--debug\t\t\tenable debugging\n\n")
+    if not os.path.exists(args.jobs): print(f"[!] Jobs file {args.jobs} not found."); sys.exit(1)
 
-def main(argv):
+    pwd = args.password or getpass.getpass()
+    ctx = ssl.create_default_context()
+    if not args.verify: ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
 
-	## defaults
-	serverurl = "http://susemanager.suselab.localdomain/rpc/api"
-	user = "admin"
-	password = ""
-	debug = 0
-	resultsfile = "jobs.csv"
-	outputfile = "results.csv"
-	try:                                
-		opts, args = getopt.getopt(argv, "hu:p:R:L:s:ro:dW", ["help", "user=", "password=", "resultsfile=", "url=", "outputfile=", "debug"])
-	except getopt.GetoptError:           
-		usage()                          
-		sys.exit(2)
+    try:
+        c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
+        
+        results_data = []
+        
+        with open(args.jobs, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) < 2: continue
+                host, aid = row[0], int(row[1])
+                print(f"[*] Checking Job {aid} for {host}...")
+                
+                try:
+                    res = c.system.getScriptResults(k, aid)
+                    if not res:
+                        print("    -> Pending/No Result")
+                        results_data.append([host, aid, "PENDING", ""])
+                    else:
+                        # Usually returns list, take first
+                        r = res[0]
+                        rc = r.get('returnCode')
+                        raw_out = r.get('output', '')
+                        # Flatten output to single line, escape newlines
+                        out = raw_out.replace('\r', '').replace('\n', '\\n')
+                        
+                        print(f"    -> Return Code: {rc}")
+                        results_data.append([host, aid, rc, out])
+                except Exception as e:
+                    print(f"    -> Error: {e}")
+                    results_data.append([host, aid, "ERROR", str(e)])
 
-	for opt, arg in opts:             
-		if opt in ("-h", "--help"): 
-				usage()                     
-				sys.exit()                  
-		elif opt in ("-u", "--user"): 
-			user = arg               
-		elif opt in ("-p", "--password"): 
-			password = arg               
-		elif opt in ("-W"): 
-			password = getpass.getpass("User password for \"" + user + "\":")               
-		elif opt in ("-R", "--resultsfile"): 
-			resultsfile = arg
-		elif opt in ("-o", "--outputfile"): 
-			outputfile = arg
-		elif opt in ("-L", "--url"): 
-			serverurl = arg
-		elif opt in ("-d", "--debug"): 
-			debug=1
+        # Write Output with quoting
+        with open('output.csv', 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(['Hostname', 'Job ID', 'Return Code', 'Output'])
+            writer.writerows(results_data)
+            
+        print(f"\n[+] Done. Results saved to 'output.csv'.")
+        c.auth.logout(k)
+    except Exception as e: print(f"Global Error: {e}")
 
-	source = "".join(args) 
-
-	if debug==1:
-		print("user=" + user + "\nresultsfile=" + resultsfile + "\nurl=" + serverurl + "\noutputfile=" + outputfile)
-
-	if resultsfile=="" or user=="" or password=="":
-		print("Please inform at least a user, password and results file name.")
-		usage()
-		sys.exit(1)
-
-	## rotina principal
-	idlist=[line.rstrip('\n').split(',') for line in open (resultsfile)]
-
-	print(f"*** Total of {len(idlist)} events to process.")
-
-	# executa os comandos
-	client = xmlrpc.client.Server(serverurl, verbose=debug)
-	key = client.auth.login(user, password)
-
-	foutput = open(outputfile,"w+")
-	for k in idlist:
-		print(f"Looking up results for job # [{k[0]}], command: [{k[1]}] executed on {k[2]} hosts.")
-		ret = client.system.getScriptResults(key, int(k[0]))
-		if len(ret) > 0:
-			for x in ret:
-				print(f"---> Return code: {x.get('returnCode')}")
-				strout=dequote(k[1]),x.get('serverId'),x.get('returnCode'),x.get('startDate').value,x.get('stopDate').value,x.get('output')
-				foutput.write(str(strout).strip('() '))
-				foutput.write('\n')
-		else:
-			print("... action not completed")
-			strout=k[1],k[0],-1,"",""
-			foutput.write(str(strout).strip('() '))
-			foutput.write('\n')
-
-	client.auth.logout(key)
-	foutput.close()
-
-	print(f"*** Success. Results written to {outputfile}")
-if __name__ == "__main__":
-	main(sys.argv[1:])
-
-
+if __name__ == "__main__": main()

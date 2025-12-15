@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-SUSE Manager / Uyuni API - List Active Systems
+SUSE Manager / Uyuni API - Get ALL Event History
 """
 import argparse, xmlrpc.client, ssl, getpass, sys
-from datetime import datetime, timedelta
 
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('-s', '--server'); p.add_argument('--url'); p.add_argument('-u', '--user', required=True)
-    p.add_argument('-p', '--password'); p.add_argument('--days', type=int, default=1)
+    p.add_argument('-p', '--password'); p.add_argument('--limit', type=int, default=5)
     p.add_argument('--verify', action='store_true')
     args = p.parse_args()
 
@@ -22,24 +21,10 @@ def main():
 
     try:
         c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
-        cutoff = datetime.now() - timedelta(days=args.days)
-        print(f"[*] Listing systems active since {cutoff}")
-        
-        count = 0
         for s in c.system.listSystems(k):
-            lc = s.get('last_checkin')
-            if not lc: continue
-            
-            # Try parsing date formats
-            dt = None
-            for fmt in ["%Y-%m-%d %H:%M:%S", "%Y%m%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S"]:
-                try: dt = datetime.strptime(str(lc), fmt); break
-                except: continue
-            
-            if dt and dt >= cutoff:
-                print(f"{s['id']} | {s['name']} | {dt}")
-                count += 1
-        print(f"[+] Total: {count}")
+            print(f"\n--- {s['name']} ---")
+            for e in c.system.listSystemEvents(k, s['id'])[:args.limit]:
+                print(f"{e.get('type')} | {e.get('created')}")
         c.auth.logout(k)
     except Exception as e: print(e)
 

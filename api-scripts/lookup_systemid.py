@@ -1,33 +1,33 @@
-#!/usr/bin/python3
-import xmlrpc.client
-import sys
-from socket import getfqdn
-import pdb
-MANAGER_USER = "infobot"
-MANAGER_PASS = "infobot321"
-MANAGER_URL = "http://susemanager.suselab.localdomain/rpc/api"
-
+#!/usr/bin/env python3
+"""
+SUSE Manager / Uyuni API - Lookup System ID
+"""
+import argparse, xmlrpc.client, ssl, getpass, sys
 
 def main():
-	session_key = None
-	args = sys.argv[1:]
-	if len(args) != 1:
-		print(f'Usage: {sys.argv[0]} <hostname>')
-		exit(1)
-	else:
-		hostname = sys.argv[1]
-		try:
-			with xmlrpc.client.ServerProxy(MANAGER_URL) as proxy:
-				session_key = proxy.auth.login(MANAGER_USER, MANAGER_PASS)
-				hosts = proxy.system.getId(session_key, hostname)
-				try:
-					system_id = hosts[0].get('id')
-					print(f'The System ID for {hostname} is {system_id}')
-				except IndexError as e:
-					print(f"Cannot find system ID for {hostname}!")
-				if (session_key) is not None:
-					proxy.auth.logout(session_key)
-		except ConnectionRefusedError as e:
-			print(f'Connection error: {e}')
+    p = argparse.ArgumentParser()
+    p.add_argument('-s', '--server'); p.add_argument('--url'); p.add_argument('-u', '--user', required=True)
+    p.add_argument('-p', '--password'); p.add_argument('--query', required=True)
+    p.add_argument('--verify', action='store_true')
+    args = p.parse_args()
 
-main()
+    if args.url: api_url = args.url
+    elif args.server: api_url = f"https://{args.server}/rpc/api"
+    else: print("[!] Error: Provide -s/--server or --url"); sys.exit(1)
+
+    pwd = args.password or getpass.getpass()
+    ctx = ssl.create_default_context()
+    if not args.verify: ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+
+    try:
+        c = xmlrpc.client.ServerProxy(api_url, context=ctx); k = c.auth.login(args.user, pwd)
+        q = args.query.lower()
+        print(f"[*] Searching '{q}' locally in system list...")
+        
+        for s in c.system.listSystems(k):
+            if q in str(s.get('name', '')).lower() or q in str(s.get('id', '')):
+                print(f"{s['id']} | {s['name']} | {s.get('last_checkin')}")
+        c.auth.logout(k)
+    except Exception as e: print(e)
+
+if __name__ == "__main__": main()
