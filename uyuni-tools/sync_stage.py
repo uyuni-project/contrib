@@ -4,7 +4,7 @@
 # GNU Public License. No warranty. No Support
 # For question/suggestions/bugs mail: michael.brookhuis@suse.com
 #
-# Version: 2019-10-17
+# Version: 2025-10-28
 #
 # Created by: SUSE Michael Brookhuis
 #
@@ -20,6 +20,7 @@
 # 2020-04-19 M.Brookhuis - all api calls moved to smtools.py and added debug logging
 # 2025-06-06 M.Brookhuis - added check if the sync of the previous environment is completed.
 # 2025-07-26 M.Brookhuis - added option --all to update a given environment in all projects
+# 2025-10-28 M.Brookhuis - return error when sync status is failed
 #
 
 """
@@ -57,25 +58,6 @@ def create_backup(par):
         smt.channel_software_clone(channels.get('label'), clo_str, False)
     smt.log_info("Creating backup finished")
 
-
-def clone_channel(channel):
-    """
-    Clone channel
-    """
-    chan = channel.get('label')
-    smt.log_info('Updating %s' % chan)
-    clone_label = smt.channel_software_getdetails(chan).get('clone_original')
-    if not clone_label:
-        smt.log_error('Unable to get parent data for channel {}. Has this channel been cloned. Skipping'.format(chan))
-        return
-    smt.log_info('     Errata .....')
-    total = smt.channel_software_mergeerrata(clone_label, chan)
-    smt.log_info('     Merging {} patches'.format(len(total)))
-    time.sleep(60)
-    smt.log_info('     Packages .....')
-    total = smt.channel_software_mergepackages(clone_label, chan)
-    smt.log_info('     Merging {} packages'.format(len(total)))
-
 def sync_completed(env, project, wait):
     """
     check if the sync of the sync of the previous environment is completed (built) or done (unknown).
@@ -89,6 +71,9 @@ def sync_completed(env, project, wait):
                     return True
                 if environment_details.get('status') == "unknown":
                     smt.log_error(f"environment {env} has never been build. Please build first")
+                    return False
+                if environment_details.get('status') == "failed":
+                    smt.log_error(f"environment {env} failed to build. Please check logs")
                     return False
                 if (environment_details.get('status') == "building" or environment_details.get('status') == "generating_repodata") and wait:
                     smt.log_info(f"environment {env} still being build. Waiting")
@@ -146,34 +131,6 @@ def update_environment(project, args):
     else:
         return False
 
-def update_all_projects(args):
-    """
-    Updating an environment within a project
-    """
-    all_projects = smt.contentmanagement_listprojects()
-    for project in all_projects:
-        update_environment(project.get('label'), args)
-
-
-def update_stage(args):
-    """
-    Updating the stages.
-    """
-    parent_details = smt.channel_software_getdetails(args.channel)
-    if parent_details.get('parent_channel_label'):
-        smt.log_debug("Channel_details: {}".format(parent_details))
-        smt.fatal_error("Given parent channel {}, is not a parent channel.".format(args.channel))
-    child_channels = smt.channel_software_listchildren(args.channel)
-    smt.log_info("Updating the following channels with latest patches and packages")
-    smt.log_info("================================================================")
-    if args.backup:
-        create_backup(args.channel)
-    for channel in child_channels:
-        if "pool" not in channel.get('label'):
-            clone_channel(channel)
-            time.sleep(10)
-
-
 def main():
     """
     Main section
@@ -182,35 +139,28 @@ def main():
     smt = smtools.SMTools("sync_stage")
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description=('''\
          Usage:
-         sync_channel.py
+         sync_stage.py
 
                '''))
-    parser.add_argument("-c", "--channel", help="name of the cloned parent channel to be updates")
     parser.add_argument("-b", "--backup", action="store_true", default=0,
                         help="creates a backup of the stage first.")
-    parser.add_argument("-a", "--all", action="store_true", default=0,
-                        help="update in all projects the given environment. Doesn't work for channel.")
     parser.add_argument("-w", "--wait", action="store_true", default=0,
                         help="wait until the sync of the previous environment is completed or present.")
     parser.add_argument("-p", "--project", help="name of the project to be updated. --environment is also mandatory")
     parser.add_argument("-e", "--environment", help="the project to be updated. Mandatory with --project")
     parser.add_argument("-m", "--message", help="Message to be displayed when build is updated")
-    parser.add_argument('--version', action='version', version='%(prog)s 1.1.0, May 2, 2020')
+    parser.add_argument('--version', action='version', version='%(prog)s 2.0.1, October 28, 2025')
     args = parser.parse_args()
     smt.suman_login()
-    if args.channel:
-        update_stage(args)
-    elif args.project and args.environment:
+    if args.project and args.environment:
         if update_environment(args.project, args):
             smt.log_info("Successfully updated environment: {}".format(args.environment))
         else:
             smt.log_error('Unable to get details of environment {} for project. Does the environment exist? '
                           '{}.'.format(args.environment, args.project))
-    elif args.all and args.environment:
-        update_all_projects(args)
     else:
         smt.log_debug("Given options: {}".format(args))
-        smt.fatal_error("Option --channel or options --project and --environment are not given. Aborting operation")
+        smt.fatal_error("Options --project and --environment are not given. Aborting operation")
     smt.close_program()
 
 

@@ -83,7 +83,7 @@ def main():
     parser.add_argument("-f", "--forcereboot", action="store_true", default=0,
                         help="Force a reboot server after patching or supportpack upgrade.")
     parser.add_argument("-d", "--nodryrun", action="store_true", default=0,
-                        help="Do not run a dry run before performing a SP migration.")
+                        help="Do not run a dry run before performing a SP data.")
     parser.add_argument('--version', action='version', version='%(prog)s 2.0.0, June 29, 2020')
     args = parser.parse_args()
     smt = smtools.SMTools("group_system_update")

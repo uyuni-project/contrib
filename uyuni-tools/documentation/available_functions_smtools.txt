@@ -1,0 +1,150 @@
+SMT
+===
+
+global
+------
+
+__init__(self, program, hostname="", hostbased=False)
+minor_error(self, errtxt)
+fatal_error(self, errtxt, return_code=1)
+log_info(self, errtxt)
+log_error(self, errtxt)
+log_warning(self, errtxt)
+log_debug(self, errtxt)
+send_mail(self)
+set_hostname(self, host_name, fatal=True)
+set_hostname_only(self, host_name)
+close_program(self, return_code=0)
+exit_program(self, return_code=0)
+suman_login(self)
+suman_login(self)
+suman_logout(self)
+get_server_id(self, fatal=True, name="")
+event_status(self, action_id)
+check_progress(self, action_id, timeout, action)
+check_progress(self, action_id, timeout, action)
+error_handling(self, err_type, message)
+
+system
+------
+system_config_set_channels(self, channels, fatal=True)
+system_deletesystem(self)
+system_getdetails(self, sid=0)
+system_getname(self, id)
+system_getrelevanterrata(self)
+system_getsubscribedbasechannel(self)
+system_listinactivesystems(self)
+system_listinstalledpackages(self)
+system_listlatestupgradablepackages(self)
+system_listmigrationtargets(self)
+system_listsubscribedchildchannels(self)
+system_listsystemevents(self)
+system_listsystems(self)
+system_obtainreactivationkey(self)
+system_scheduleapplyerrate(self, patches, date, action, errlev="fatal")
+system_scheduleapplyhighstate(self, date, test=False)
+system_scheduleapplystates(self, states, date, test=False)
+system_schedulechangechannels(self, basechannel, childchannels, date)
+system_schedulehardwarerefresh(self, date, nowait=False)
+system_schedulepackageinstall(self, packages, date, action)
+system_schedulepackagerefresh(self, date)
+system_schedulereboot(self, date)
+system_schedulescriptrun(self, script, timeout, date)
+system_schedulespmigration(self, spident, basechannel, childchannels, dryrun, date, action)
+system_set_group_membership(self, sgid, fatal=True)
+
+softwarechannel
+---------------
+channel_software_addpackages(self, channel, packages)
+channel_software_associaterepo(self, channel, repo)
+channel_software_clone(self, channel, clone_channel, original_state)
+channel_software_create(self, label, name, summary, archlabel, parentlabel)
+channel_software_createrepo(self, channel, ch_type, ch_url, no_fatal=False)
+channel_software_createrepo_cert(self, channel, ch_type, ch_url, ch_ca, ch_cert, ch_key, no_fatal=False)
+channel_software_getdetails(self, channel, no_fatal=False)
+channel_software_getrepodetails(self, channel, no_fatal=False)
+channel_software_listallpackages(self, channel, fatal_error=True)
+channel_software_listchildren(self, channel)
+channel_software_listsubscribedsystems(self, channel)
+channel_software_mergeerrata(self, parent_channel, clone_channel)
+channel_software_mergeerrata_cve(self, parent_channel, clone_channel, cves)
+channel_software_mergepackages(self, parent_channel, clone_channel)
+channel_software_regenerateyumcache(self, channel, force=True)
+channel_software_syncrepo(self, repo, schedule)
+get_labels_all_basechannels(self)
+get_labels_all_channels(self)
+
+contentmanagement
+-----------------
+configchannel_channelexists(self, state)
+contentmanagement_attachsource(self, project, channel, fatal=True)
+contentmanagement_buildproject(self, project, build_message)
+contentmanagement_createenvironment(self, project, pre_label, label, name, description)
+contentmanagement_createproject(self, project, label, description)
+contentmanagement_detachsource(self, project, channel, fatal=True)
+contentmanagement_listprojectenvironment(self, project, no_fatal=False)
+contentmanagement_listprojects(self)
+contentmanagement_listprojectsources(self, project)
+contentmanagement_lookupenvironment(self, project, env)
+contentmanagement_lookupproject(self, project, fatal=False)
+contentmanagement_promoteproject(self, project, environment)
+contentmanagement_removeenvironment(self, project, environment)
+contentmanagement_removeproject(self, project)
+
+configuration channel
+---------------------
+system_config_addchannels(self, systems, channel, addtotop=False)
+system_config_removechannels(self, systems, channel)
+
+systemgroups
+-------------
+systemgroup_listsystemminimal(self, group)
+systemgroup_listactivesystemsingroup(self, group)
+systemgroup_get_details(self, group, fatal=True)
+systemgroup_list_all_groups(self)
+systemgroup_add_or_remove_systems(self, group, systems, add=True)
+systemgroup_create(self, group, description)
+
+kickstart
+---------
+kickstart_keys_listallkeys(self)
+kickstart_tree_list(self, channel)
+kickstart_tree_deletetreeandprofiles(self, label)
+kickstart_list_kickstarts(self)
+kickstart_deleteprofile(self, label)
+
+scheduling
+----------
+schedule_listinprogresssystems(self, action_id)
+schedule_listcompletedsystems(self, action_id)
+schedule_listfailedsystems(self, action_id)
+
+image
+-----
+image_profile_create(self, image_profile_name, image_profile_type, software_channel_store_label,
+image_schedule_image_build(self, profile_label, version, build_host_id, date)
+
+activationkey
+-------------
+activationkey_add_child_channels(self, key, child_channels)
+activationkey_create_vh(self, key, description, base_channel_label, entitlements=None, virtualhost="", universal_default=False)
+activationkey_delete(self, key)
+activationkey_listactivationkeys(self)
+
+errata
+-------
+errata_applicabletochannels(self, ad_name, fatal_error=True)
+errata_clone(self, channel, ad_names)
+errata_findbycve(self, cve, fatal_error=True)
+errata_getdetails(self, errata, fatal_error=True)
+errata_listpackages(self, cve)
+
+package
+-------
+package_search_name(self, package, fatal_error=True)
+
+user
+----
+user_add_assigned_system_groups(self, login, system_groups, fatal_error=True)
+user_add_role(self, login, role, fatal_error=True)
+user_create(self, login, first_name, last_name, email, password, fatal_error=True)

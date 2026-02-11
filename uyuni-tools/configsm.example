@@ -18,6 +18,12 @@ dirs:
    scripts_dir: /opt/susemanager
    update_script_dir: /opt/susemanager/update_scripts
 
+monitoring:
+  hostname: 127.0.0.1
+  port: 5000
+  system_update: True
+  system_highstate: False
+
 loglevel:
    # LOGLEVELS:
    # DEBUG: info warning error debug

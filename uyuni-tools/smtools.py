@@ -18,12 +18,14 @@
 # 2020-03-21 M.Brookhuis - RC 1 if there has been an error
 # 2020-11-09 M.Brookhuis - Added maintenance|wait_between_events_check option. This should also be added to configsm.yaml.
 # 2021-01-05 M.Brookhuis - Optimized events checking
+# 2025-12-09 M.Brookhuis - Added monitoring|monitoring_system_update option.
 #
 # coding: utf-8
 
 """
 This library contains functions used in other modules
 """
+import json
 import ssl
 from email.mime.text import MIMEText
 import xmlrpc.client
@@ -33,6 +35,8 @@ import sys
 import datetime
 import smtplib
 import socket
+
+import requests
 import yaml
 import time
 
@@ -91,8 +95,9 @@ class SMTools:
             if not os.path.exists(CONFIGSM['dirs']['log_dir']):
                 os.makedirs(CONFIGSM['dirs']['log_dir'])
             log_name = os.path.join(log_dir, self.program + ".log")
-
-        formatter = logging.Formatter('%(asctime)s |  {} | %(levelname)s | %(message)s'.format(self.hostname),
+        if not self.hostname:
+            self.hostname = self.program
+        formatter = logging.Formatter('%(asctime)s | {} | %(levelname)s | %(message)s'.format(self.hostname),
                                       '%d-%m-%Y %H:%M:%S')
 
         fh = logging.FileHandler(log_name, 'a')
@@ -131,6 +136,12 @@ class SMTools:
         self.error_text += "\n"
         self.error_found = True
         self.log_error("{}".format(errtxt))
+        try:
+            system_update_monitoring = CONFIGSM['monitoring']['monitoring_system_update']
+            if self.program == "system_update" and system_update_monitoring:
+                self.report_status(self.hostname, "error", "system_update", errtxt)
+        except KeyError:
+            self.log_debug("No monitoring configured for system_update")
         self.close_program(return_code)
 
     def log_info(self, errtxt):
@@ -256,24 +267,6 @@ class SMTools:
             except:
                 self.fatal_error("Unable to login to SUSE Manager server {} XMLRPC".format(CONFIGSM['suman']['server']))
 
-    '''
-        def suman_login(self):
-            """
-            Log in to SUSE Manager Server.
-            """
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.connect_ex((CONFIGSM['suman']['server'], 443))
-            except:
-                self.fatal_error("Unable to login to SUSE Manager server {}".format(CONFIGSM['suman']['server']))
-    
-            self.client = xmlrpc.client.Server("https://" + CONFIGSM['suman']['server'] + "/rpc/api")
-            try:
-                self.session = self.client.auth.login(CONFIGSM['suman']['user'], CONFIGSM['suman']['password'])
-            except xmlrpc.client.Fault:
-                self.fatal_error("Unable to login to SUSE Manager server {}".format(CONFIGSM['suman']['server']))
-    '''
-
     def suman_logout(self):
         """
         Logout from SUSE Manager Server.
@@ -318,38 +311,6 @@ class SMTools:
         self.systemid = system_id
         return system_id
 
-    '''
-    def event_status(self, action_id):
-        """
-        Check status of event
-        """
-        for result in self.system_listsystemevents():
-            if result.get('id') == action_id:
-                return result.get('failed_count'), result.get('successful_count'), result.get('result_msg')
-        self.fatal_error("System {} is not having a event ID. Aborting!".format(self.hostname))
-
-    def check_progress(self, action_id, timeout, action):
-        """
-        Check progress of action
-        """
-        (failed_count, completed_count, result_message) = self.event_status(action_id)
-        end_time = datetime.datetime.now() + datetime.timedelta(0, timeout)
-        try:
-            wait_time = CONFIGSM['maintenance']['wait_between_events_check']
-        except:
-            wait_time = 15
-            self.minor_error("Please set value for maintenance | wait_between_events_check")
-        while failed_count == 0 and completed_count == 0:
-            if datetime.datetime.now() > end_time:
-                message = "Action '{}' run in timeout. Please check server {}.".format(action, self.hostname)
-                self.error_handling('timeout_passed', message)
-                return 1, 0, message
-            (failed_count, completed_count, result_message) = self.event_status(action_id)
-            self.log_info("Still Running")
-            time.sleep(wait_time)
-        return failed_count, completed_count, result_message
-    '''
-
     def check_progress(self, action_id, timeout, action):
         """
         Check progress of action
@@ -388,6 +349,24 @@ class SMTools:
         else:
             message += "\nWrong option given {}. Should be fatal, error or warning. Assuming fatal"
             self.fatal_error(message)
+
+    def report_status(self, hostname, status, service, comment=""):
+        """Sends a POST request to update or insert a host's status."""
+        BASE_URL = f"http://{CONFIGSM['monitoring']['hostname']}:{CONFIGSM['monitoring']['port']}/"
+        first, *others = comment.splitlines()
+        payload = {
+            "hostname": hostname,
+            "status": status,
+            "service": service,
+            "comment": first
+        }
+        try:
+            response = requests.post(f"{BASE_URL}/record", json=payload)
+            response.raise_for_status() # Raise an exception for bad status codes
+        except requests.exceptions.RequestException as e:
+            self.log_error(f"ERROR: Could not connect to service or bad response to report_status. Details: {e}")
+            if 'response' in locals() and response.json():
+                self.log_error(f"Server Detail: {response.json()}")
 
     """
     API call related to system
@@ -763,13 +742,13 @@ class SMTools:
             self.log_debug('api-call: system.scheduleSPMigration')
             self.log_debug('Value passed: ')
             self.log_debug('  system_id:       {}'.format(self.systemid))
-            self.log_debug('  migration target {}'.format(spident))
+            self.log_debug('  data target {}'.format(spident))
             self.log_debug('  basechannels:    {}'.format(basechannel))
             self.log_debug('  childchannels:   {}'.format(childchannels))
             self.log_debug('  dryrun:          {}'.format(dryrun))
             self.log_debug('  date:            {}'.format(date))
             self.log_debug("Error: \n{}".format(err))
-            self.fatal_error('Unable to schedule Support Pack migration for server {}.'.format(self.hostname))
+            self.fatal_error('Unable to schedule Support Pack data for server {}.'.format(self.hostname))
 
         timeout = CONFIGSM['suman']['timeout'] - 30
         time.sleep(30)
@@ -872,8 +851,8 @@ class SMTools:
 
     def channel_software_createrepo_cert(self, channel, ch_type, ch_url, ch_ca, ch_cert, ch_key, no_fatal=False):
         try:
-            return self.client.channel.software.getRepoDetail(self.session, channel, ch_type, ch_url, ch_ca, ch_cert,
-                                                              ch_key)
+            return self.client.channel.software.createRepo(self.session, channel, ch_type, ch_url, ch_ca, ch_cert,
+                                                            ch_key)
         except xmlrpc.client.Fault as err:
             if no_fatal:
                 return False
@@ -893,7 +872,7 @@ class SMTools:
 
     def channel_software_createrepo(self, channel, ch_type, ch_url, no_fatal=False):
         try:
-            return self.client.channel.software.getRepoDetail(self.session, channel, ch_type, ch_url)
+            return self.client.channel.software.createRepo(self.session, channel, ch_type, ch_url)
         except xmlrpc.client.Fault as err:
             if no_fatal:
                 return False
@@ -941,6 +920,18 @@ class SMTools:
             self.log_debug("Error: \n{}".format(err))
             self.minor_error('Unable to get errata for channel {}.'.format(clone_channel))
 
+    def channel_software_mergeerrata_cve(self, parent_channel, clone_channel, errata_names):
+        try:
+            return self.client.channel.software.mergeErrata(self.session, parent_channel, clone_channel, errata_names)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: channel.software.mergeErrata')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  parent_channel: {parent_channel}')
+            self.log_debug(f'  clone_channel:  {clone_channel}')
+            self.log_debug(f'  advisory_names: {errata_names}')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(f'Unable to get errata for channel {clone_channel}.')
+
     def channel_software_mergepackages(self, parent_channel, clone_channel):
         try:
             return self.client.channel.software.mergePackages(self.session, parent_channel, clone_channel)
@@ -986,7 +977,44 @@ class SMTools:
             self.log_debug(f"Error: \n{err}")
             self.minor_error(f"Unable to get subscribed systems for channel {channel}")
 
+    def channel_software_addpackages(self, channel, packages):
+        try:
+            return self.client.channel.software.addPackages(self.session, channel, packages)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to add packages to channel {channel}. The error is: \n{err}'
+            self.log_debug('api-call: channel.software.addPackages')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  channel:    {channel}')
+            self.log_debug(f"  packages:   {packages})")
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(message)
 
+    def channel_software_regenerateyumcache(self, channel, force=True):
+        try:
+            return self.client.channel.software.regenerateYumCache(self.session, channel, force)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to regenerate yum cache for channel {channel}. The error is: \n{err}'
+            self.log_debug('api-call: channel.software.regenerateYumCache')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  channel:    {channel}')
+            self.log_debug(f"  force:      {force})")
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(message)
+
+    def channel_software_listallpackages(self, channel, fatal_error=True):
+        try:
+            return self.client.channel.software.listAllPackages(self.session, channel)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to get a list of package for channel {channel}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: channel.software.listAllPackages')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  channel:    {channel}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_debug(message)
+                return []
 
 
     def get_labels_all_basechannels(self):
@@ -1173,7 +1201,7 @@ class SMTools:
         try:
             return self.client.contentmanagement.listProjectSources(self.session, project)
         except xmlrpc.client.Fault as err:
-            self.log_debug('api-call: contentmanagement.listProjectsources')
+            self.log_debug('api-call: contentmanagement.listProjectSources')
             self.log_debug('Value passed: ')
             self.log_debug('  project: {}'.format(project))
             self.log_debug("Error: \n{}".format(err))
@@ -1347,15 +1375,18 @@ class SMTools:
             self.log_debug("Error: \n{}".format(err))
             self.fatal_error('Unable to add or remove systems to systemgroup')
 
-    def systemgroup_create(self, group, description):
+    def systemgroup_create(self, group, description, fatal=True):
         try:
             return self.client.systemgroup.create(self.session, group, description)
         except xmlrpc.client.Fault as err:
-            self.log_debug('api-call: systemgroups.create')
-            self.log_debug(f'  Group:        {group}')
-            self.log_debug(f'  Description:  {description}')
-            self.log_debug("Error: \n{}".format(err))
-            self.fatal_error('Unable create systemgroup')
+            if fatal:
+                self.log_debug('api-call: systemgroups.create')
+                self.log_debug(f'  Group:        {group}')
+                self.log_debug(f'  Description:  {description}')
+                self.log_debug("Error: \n{}".format(err))
+                self.fatal_error('Unable create systemgroup')
+            else:
+                self.log_warning(f'systemgroup {group} already exists.')
 
     """
     API call related to kickstart
@@ -1561,4 +1592,272 @@ class SMTools:
             self.log_debug(f"Error: \n{err}")
             message = f'Unable to delete activationkey {key}. The error is: \n{err}'
             self.fatal_error(message)
+
+    def activationkey_create_vh(self, key, description, base_channel_label, fatal_error=True, entitlements=None, universal_default=False):
+        if entitlements is None:
+            entitlements = []
+        try:
+            return self.client.activationkey.create(self.session, key, description, base_channel_label, entitlements, universal_default)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to create activationkey {key}. The message is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: activationkey.create')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  key:                  {key}')
+                self.log_debug(f'  description:          {description}')
+                self.log_debug(f'  baseChannelLabel:     {base_channel_label}')
+                self.log_debug(f'  entitlements:         {entitlements}')
+                self.log_debug(f'  universalDefault:     {universal_default}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_warning(message)
+                return key
+
+    def activationkey_add_child_channels(self, key, child_channels):
+        try:
+            return self.client.activationkey.addChildChannels(self.session, key, child_channels)
+        except xmlrpc.client.Fault as err:
+            self.log_debug('api-call: activationkey.addChildChannels')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  key:           {key}')
+            self.log_debug(f'  childChannels: {child_channels}')
+            self.log_debug(f"Error: \n{err}")
+            message = f'Unable to add childChannels {key}. The error is: \n{err}'
+            self.fatal_error(message)
+
+    """
+    API call related to errata
+    """
+    def errata_findbycve(self, cve, fatal_error=True):
+        """
+        Finds errata information associated with a specific Common Vulnerabilities and Exposures (CVE)
+        identifier by interacting with an XML-RPC client. If an error occurs during retrieval, it
+        handles the error based on the specified behavior.
+
+        :param cve: The CVE identifier for which the errata information is to be retrieved.
+        :type cve: str
+        :param fatal_error: Determines if the method should halt execution upon a retrieval error.
+                            Defaults to True.
+        :type fatal_error: bool
+        :return: A list of errata associated with the given CVE on successful retrieval. Returns an
+                 empty list if an error occurs and `fatal_error` is set to False.
+        :rtype: list
+        :raises xmlrpc.client.Fault: If an issue occurs during the XML-RPC request.
+        """
+        try:
+            return self.client.errata.findByCve(self.session, cve)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to get information from CVE  {cve}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: errata.findByCve')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  cve:   {cve}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_error(message)
+                return []
+
+    def errata_applicabletochannels(self, ad_name, fatal_error=True):
+        """
+        Determines which channels an advisory is applicable to.
+
+        This method queries the server using the advisory name and retrieves
+        the information about the channels associated with that advisory.
+        If an error occurs, it either logs an error message or raises a
+        fatal error depending on the `fatal_error` flag.
+
+        :param ad_name: Advisory name to query for applicable channels.
+        :type ad_name: str
+        :param fatal_error: Flag indicating whether to raise a fatal error
+            or just log the error and return an empty list when an error occurs.
+        :type fatal_error: bool, optional
+        :return: List of channels applicable to the provided advisory name.
+            If an error occurs and `fatal_error` is False, returns an empty list.
+        :rtype: list
+        """
+        try:
+            return self.client.errata.applicableToChannels(self.session, ad_name)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to get information from advisory_name  {ad_name}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: errata.applicableToChannels')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  advisory_name:   {ad_name}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_error(message)
+                return []
+
+    def errata_clone(self, channel, ad_names):
+        """
+        Clones an advisory to a specified channel using the API client. This method communicates
+        with the server to perform the cloning operation. If the operation fails, it will log
+        detailed debugging information and raise a fatal error with an appropriate message.
+
+        :param channel: The target channel where the advisory will be cloned.
+        :param ad_names: The name(s) of the advisories to be cloned.
+        :return: The result of the cloning operation from the API client.
+        """
+        try:
+            return self.client.errata.clone(self.session, channel, ad_names)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to add advisory_name  {ad_names} to {channel}. The error is: \n{err}'
+            self.log_debug('api-call: errata.clone')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  channel:         {channel}')
+            self.log_debug(f'  advisory_name:   {ad_names}')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(message)
+
+    def errata_listpackages(self, errata):
+        """
+        Retrieve a list of packages associated with a given CVE (Common Vulnerabilities and Exposures)
+        identifier. This function interfaces with an external client, handling potential
+        errors in the process.
+
+        :param errata: The CVE identifier for which package information is requested.
+        :type errata: str
+        :return: A list of packages associated with the specified CVE.
+        :rtype: list
+        :raises xmlrpc.client.Fault: If the external client raises a fault during the API call.
+        """
+        try:
+            return self.client.errata.listPackages(self.session, errata)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to find packages for {errata}. The error is: \n{err}'
+            self.log_debug('api-call: errata.listPackages')
+            self.log_debug('Value passed: ')
+            self.log_debug(f'  advisory_name:      {errata}')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(message)
+
+    def errata_addpackages(self, errata, packages):
+        try:
+            return self.client.errata.addPackages(self.session, errata, packages)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to find packages for {errata}. The error is: \n{err}'
+            self.log_debug('api-call: errata.addPackages')
+            self.log_debug('Value passed: ')
+
+            self.log_debug(f'  advisory_name:      {errata}')
+            self.log_debug(f"  packages:           {packages})")
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(message)
+
+    def errata_getdetails(self, errata, fatal_error=True):
+        try:
+            return self.client.errata.getDetails(self.session, errata)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to find details for {errata}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: errata.getDetails')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  advisory_name:      {errata}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_warning(message)
+                return []
+
+    """
+    API call related to packages
+    """
+
+    def package_search_name(self, package, fatal_error=True):
+        try:
+            return self.client.packages.search.name(self.session, package)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to find details for {package}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: packages.search.name')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  package:      {package}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_warning(message)
+                return []
+
+
+    """
+    API call related to users
+    """
+    def user_create(self, login, first_name, last_name, email, password, fatal_error=True):
+        try:
+            return self.client.user.create(self.session, login, password, first_name, last_name, email)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to create use {login}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: user.create')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  login:      {login}')
+                self.log_debug(f'  firstName:  {first_name}')
+                self.log_debug(f'  lastName:   {last_name}')
+                self.log_debug(f'  email:      {email}')
+                self.log_debug(f'  password:   xxxxxxxxx')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_warning(message)
+                return []
+
+    def user_add_role(self, login, role, fatal_error=True):
+        try:
+            return self.client.user.addRole(self.session, login, role)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to addrole {role} to user {login}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: user.addRole')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  login:      {login}')
+                self.log_debug(f'  role:       {role}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_warning(message)
+                return []
+
+    def user_add_assigned_system_groups(self, login, system_groups, fatal_error=True):
+        try:
+            return self.client.user.addAssignedSystemGroups(self.session, login, system_groups, True)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to add systemgroups to user {login}. The error is: \n{err}'
+            if fatal_error:
+                self.log_debug('api-call: user.addAssignedSystemGroups')
+                self.log_debug('Value passed: ')
+                self.log_debug(f'  login:      {login}')
+                self.log_debug(f'  sgNames:    {system_groups}')
+                self.log_debug(f"Error: \n{err}")
+                self.fatal_error(message)
+            else:
+                self.log_warning(message)
+                return []
+
+
+    """
+    API call related to sync
+    """
+    def sync_hub_getallperipheralorgs(self):
+        """
+        Retrieve a list of packages associated with a given CVE (Common Vulnerabilities and Exposures)
+        identifier. This function interfaces with an external client, handling potential
+        errors in the process.
+
+        :param errata: The CVE identifier for which package information is requested.
+        :type errata: str
+        :return: A list of packages associated with the specified CVE.
+        :rtype: list
+        :raises xmlrpc.client.Fault: If the external client raises a fault during the API call.
+        """
+        try:
+            return self.client.sync.hub.getAllPeripheralOrgs(self.session)
+        except xmlrpc.client.Fault as err:
+            message = f'Unable to getAllPeripheralOrgs. The error is: \n{err}'
+            self.log_debug('api-call: sync.hub.getAllPeripheralOrgs')
+            self.log_debug(f"Error: \n{err}")
+            self.fatal_error(message)
+
 

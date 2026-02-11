@@ -13,7 +13,7 @@
 # Releases:
 # 2020-04-01 M.Brookhuis - initial release.
 #
-"""This program will add the give system to the software-, configurationchannels and systemgroups after migration"""
+"""This program will add the give system to the software-, configurationchannels and systemgroups after data"""
 import sys
 import argparse
 from argparse import RawTextHelpFormatter
