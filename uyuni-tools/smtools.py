@@ -25,7 +25,6 @@
 """
 This library contains functions used in other modules
 """
-import json
 import ssl
 from email.mime.text import MIMEText
 import xmlrpc.client
@@ -1385,8 +1384,10 @@ class SMTools:
                 self.log_debug(f'  Description:  {description}')
                 self.log_debug("Error: \n{}".format(err))
                 self.fatal_error('Unable create systemgroup')
+                return None
             else:
                 self.log_warning(f'systemgroup {group} already exists.')
+                return None
 
     """
     API call related to kickstart

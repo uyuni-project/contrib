@@ -489,4 +489,4 @@ def main():
     update_status(args.server, "finished", "update completed")
 
 if __name__ == "__main__":
-    SystemExit(main())
+    main()

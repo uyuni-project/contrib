@@ -272,4 +272,4 @@ def main():
     smt.close_program()
 
 if __name__ == "__main__":
-    SystemExit(main())
+    main()
