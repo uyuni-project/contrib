@@ -15,7 +15,6 @@
 """
 
 import xmlrpc.client
-import time
 import argparse
 
 SUSE_MULTI_LINUX_MANAGER_SERVER = "<your-server>"
@@ -73,7 +72,6 @@ def add_client_tools_channels(client, key, extensions, dry_run):
                         log(f"already synced: {ch.get('label')}")
                         continue
                     label = ch.get('label', 'N/A')
-                    family = ch.get('family', 'N/A')
                     if dry_run:
                         dry_run_log(f"Would add channel: {label}")
                     else:

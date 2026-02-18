@@ -5,7 +5,7 @@
 # (c) 2018 SUSE Linux GmbH, Germany.
 # GNU Public License. No warranty. No Support
 #
-# Version: 2020-06-29
+# Version: 2025-12-09
 #
 # Created by: SUSE Michael Brookhuis
 #
@@ -21,6 +21,7 @@
 #                        - changed logging
 #                        - moved api calls to smtools.py
 # 2022-05-05 M.Brookhuis - added request for disabling dry-run in SPMIG.
+# 2025-12-09 M.Brookhuis - Added monitoring|monitoring_system_update option.
 #
 
 """
@@ -78,6 +79,7 @@ def do_upgrade(no_reboot, force_reboot):
     """
     do upgrade of packages
     """
+    update_status(smt.hostname, "running", "Upgrading packages")
     updateble_patches = smt.system_getrelevanterrata()
     if updateble_patches:
         do_update_minion(updateble_patches)
@@ -131,16 +133,19 @@ def do_upgrade(no_reboot, force_reboot):
     if force_reboot:
         smt.log_debug("Option force_reboot given")
     if not no_reboot and reboot_needed_package and reboot_needed_errata:
+        update_status(smt.hostname, "running", "Performing reboot")
         smt.system_schedulereboot(datetime.datetime.now())
         time.sleep(30)
+        update_status(smt.hostname, "running", "Reboot completed")
     smt.system_schedulehardwarerefresh(datetime.datetime.now(), True)
     return
 
 
 def do_spmigrate(new_basechannel, no_reboot, no_dryrun):
     """
-    Perform a sp migration for the given server
+    Perform a sp data for the given server
     """
+    update_status(smt.hostname, "running", "SP Migration started")
     checked_new_child_channels = []
     old_basechannel = smt.system_getsubscribedbasechannel()
     (migration_available, migration_targets) = check_spmigration_available()
@@ -185,12 +190,16 @@ def do_spmigrate(new_basechannel, no_reboot, no_dryrun):
             time.sleep(20)
             result_spmig = smt.system_schedulespmigration(spident, new_basechannel, checked_new_child_channels, False, datetime.datetime.now(), "SupportPack Migration")
         if result_spmig and not no_reboot:
-            smt.log_info("Support Pack migration completed successful, rebooting server {}".format(smt.hostname))
+            smt.log_info("Support Pack data completed successful, rebooting server {}".format(smt.hostname))
+            update_status(smt.hostname, "running", "Performing reboot")
             smt.system_schedulereboot(datetime.datetime.now())
+            update_status(smt.hostname, "running", "Reboot completed")
         elif result_spmig and no_reboot:
-            smt.log_info("Support Pack migration completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(smt.hostname))
+            smt.log_info("Support Pack data completed successful, but server {} will not be rebooted. Please reboot manually ASAP.".format(smt.hostname))
         else:
-            smt.log_error("SP Migration failed. Please check logs.")
+            message = "SP Migration failed. Please check logs."
+            update_status(smt.hostname, "error", message)
+            smt.log_error(message)
         smt.system_schedulepackagerefresh(datetime.datetime.now())
         smt.system_schedulehardwarerefresh(datetime.datetime.now())
     else:
@@ -209,7 +218,7 @@ def check_channel(channel, channel_all):
 
 def check_spmigration_available():
     """
-    Check if there is a SP migration is available
+    Check if there is a SP data is available
     """
     migration_targets = smt.system_listmigrationtargets()
     if migration_targets:
@@ -242,7 +251,7 @@ def remove_ltss():
 
 def check_for_sp_migration():
     """
-    Check if a sp migration is released for this server
+    Check if a sp data is released for this server
     """
     current_bc = smt.system_getsubscribedbasechannel().get('label')
     if "sle" not in current_bc and "opensuse" not in current_bc:
@@ -352,6 +361,7 @@ def do_update_script(phase):
         list_systems = [smt.systemid]
         smt.system_config_addchannels(list_systems, list_channel)
         smt.log_info("Performing high state for {} state channels".format(phase))
+        update_status(smt.hostname, "running", "Performing highstate")
         smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.now()))
         smt.system_config_removechannels(list_systems, list_channel)
         return True
@@ -365,14 +375,19 @@ def update_server(args):
     start update process
     """
     if server_is_exception_update():
-        smt.fatal_error("Server {} is in list of exceptions and will not be updated.".format(args.server))
+        message = "Server {} is in list of exceptions and will not be updated.".format(args.server)
+        update_status(args.server, "error", message)
+        smt.fatal_error(message)
     if system_is_inactive():
-        smt.fatal_error("Server {} is inactive for at least a day. Please check. System will not be updated.".format(args.server))
+        message = "Server {} is inactive for at least a day. Please check. System will not be updated.".format(args.server)
+        update_status(args.server, "error", message)
+        smt.fatal_error(message)
     highstate_done = False
     if args.updatescript:
         highstate_done = do_update_script("begin")
     if args.applyconfig and not highstate_done:
         if smt.system_getdetails().get('base_entitlement') == "salt_entitled":
+            update_status(smt.hostname, "running", "Performing highstate")
             smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.now()))
     (do_spm, new_basechannel) = check_for_sp_migration()
     if do_spm:
@@ -386,6 +401,7 @@ def update_server(args):
         highstate_done = do_update_script("end")
     if args.applyconfig and not highstate_done:
         if smt.system_getdetails().get('base_entitlement') == "salt_entitled":
+            update_status(smt.hostname, "running", "Performing highstate")
             smt.system_scheduleapplyhighstate(xmlrpc.client.DateTime(datetime.datetime.now()))
     if args.post_script:
         smt.log_info("Executing script {}".format(args.post_script))
@@ -403,19 +419,42 @@ def update_server(args):
         else:
             smt.log_error("The given script does not exist")
 
+def update_status(server, status, message):
+    """
+    Updates the status of a server by reporting it to the monitoring system.
+
+    The function is responsible for checking if the system update configuration
+    is enabled in the monitoring settings and, if enabled, reporting the provided
+    status of the server along with a message.
+
+    :param server: The server identifier whose status is being updated.
+    :type server: str
+    :param status: The status to report for the server (e.g., 'active', 'inactive').
+    :type status: str
+    :param message: Additional information or message related to the status update.
+    :type message: str
+    :return: None
+    """
+    try:
+        system_update_monitoring = smtools.CONFIGSM['monitoring']['monitoring_system_update']
+        if system_update_monitoring:
+            smt.report_status(server, status, "system_update", message)
+    except KeyError:
+        smt.log_error("No monitoring configured for system_update")
+
 
 def main():
     """
     Main function
     """
+    global smt
     try:
-        global smt
         parser = argparse.ArgumentParser(description="Update the give system.")
         parser.add_argument('-s', '--server', help='name of the server to receive config update. Required')
         parser.add_argument("-n", "--noreboot", action="store_true", default=0,
                             help="Do not reboot server after patching or supportpack upgrade.")
         parser.add_argument("-d", "--nodryrun", action="store_true", default=0,
-                            help="Do not run a dry run before performing a SP migration.")
+                            help="Do not run a dry run before performing a SP data.")
         parser.add_argument("-f", "--forcereboot", action="store_true", default=0,
                             help="Force a reboot server after patching or supportpack upgrade.")
         parser.add_argument("-c", '--applyconfig', action="store_true", default=0,
@@ -423,7 +462,7 @@ def main():
         parser.add_argument("-u", "--updatescript", action="store_true", default=0,
                             help="Execute the server specific _start and _end scripts")
         parser.add_argument("-p", "--post_script", help="Execute given script on the SUSE Manger Server when system_update has finished")
-        parser.add_argument('--version', action='version', version='%(prog)s 2.0.0, June 29, 2020')
+        parser.add_argument('--version', action='version', version='%(prog)s 2.0.2, December 8, 2025')
         args = parser.parse_args()
         if not args.server:
             smt = smtools.SMTools("system_update")
@@ -437,12 +476,17 @@ def main():
         smt.log_debug(args)
         smt.suman_login()
         smt.set_hostname(args.server)
+        update_status(args.server, "running", "initializing")
         update_server(args)
+        update_status(args.server, "finished", "update completed")
         smt.close_program()
     except Exception as err:
+        message = "Error during system update: {}".format(err)
+        update_status(args.server, "error", message)
         smt.log_debug("general error:")
         smt.log_debug(err)
         raise
+    update_status(args.server, "finished", "update completed")
 
 if __name__ == "__main__":
-    SystemExit(main())
+    main()

@@ -123,7 +123,7 @@ def process_clm_project(client, key, project_label, base_channels, dry_run, prom
         filter_time = dt_object.strftime("%Y-%m-%dT%H:%M:%SZ")
         random_number = random.randint(1111,9999)
         create_filter = client.contentmanagement.createFilter(key, f"frozen_{project_label}_{random_number}", "deny", "erratum", {'matcher': "greatereq", 'field': "issue_date", 'value': filter_time})
-        added_filter = client.contentmanagement.attachFilter(key, project_label, create_filter['id'])
+        client.contentmanagement.attachFilter(key, project_label, create_filter['id'])
         log(f"Filter -> {create_filter.get('name')} has been created and attached to project {project_label} to freeze the channels from newer patches.")
     else:
         log("Parameter frozen is not given, newer patches will be promoted in the channels")
@@ -193,9 +193,6 @@ def process_activation_keys(client, key, activation_keys, dry_run):
     """Function to process one or more activation keys."""
     log("\n=== Processing Activation Keys ===")
     
-    # We need a list of all channels to dynamically find the 'managertools' channel
-    all_channels = client.channel.listSoftwareChannels(key)
-
     for ak_key in activation_keys:
         log(f"Processing activation key: {ak_key}")
         
