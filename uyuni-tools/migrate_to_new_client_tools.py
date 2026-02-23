@@ -27,9 +27,9 @@ from datetime import datetime
 from argparse import RawTextHelpFormatter
 
 # --- Configuration ---
-SUSE_MULTI_LINUX_MANAGER_SERVER = "192.168.2.151"
-USERNAME = "admin"
-PASSWORD = "suse1234"
+SUSE_MULTI_LINUX_MANAGER_SERVER = "<SERVER FQDN>"
+USERNAME = "<USER>"
+PASSWORD = "<PASSWORD>"
 
 
 def log(message):
