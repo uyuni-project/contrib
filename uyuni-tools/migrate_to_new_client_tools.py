@@ -4,9 +4,9 @@
 # GNU Public License. No warranty. No Support
 # For question/suggestions/bugs mail: amehmood@suse.com
 #
-# Version: 2025-10-14
+# Version: 2026-02-23
 #
-# Created by: Abid Mehmood
+# Created by: Abid Mehmood / Michael Brookhuis
 #
 # Using this script user can update their activation keys and CLM projects by removing the old client tools and switching to new client tools.
 # This script assumes that new client tools have been already synced in your SUSE Multi-Linux Manager and Uyuni instance. One can use sync_client_tools.py script to sync the new client tools.
@@ -14,6 +14,7 @@
 # 2025-10-14 Abid - initial release.
 # 2025-10-29 Michael Brookhuis - added --frozen parameter to freeze channels from newer patches in clm projects.
 # 2025-10-20 Abid - Added the promote parameter to promote only if specified.
+# 2026-02-23 Michael Brookhuis - Added the systems parameter to process systems.
 
 
 """
@@ -205,7 +206,6 @@ def process_activation_keys(client, key, activation_keys, dry_run):
 
         old_tools = [label for label in child_channel_labels if 'manager-tools' in label.lower()]
         
-        channels_to_attach = []
         # Find the new 'managertools' channel based on the base channel of the activation key
         base_channel_label = detail.get('base_channel_label')
         if base_channel_label and base_channel_label != 'none':
@@ -245,6 +245,30 @@ def process_autoinstallation_profiles(client, key, profiles_to_process, dry_run)
     """Skeleton function to process one or more autoinstallation profiles."""
     log("\n=== Not implemented yet ===")
 
+def process_systems(client, key, systems_to_process, dry_run):
+    for system in systems_to_process:
+            process_system(client, key, system, dry_run)
+
+def process_system(client, key, system, dry_run):
+    """Processes a single system and  updating channels."""
+    hostname = client.system.getName(key, system)["name"]
+    log(f"\n=== Processing System with id: {hostname} ===")
+    base_channel_all = client.system.getSubscribedBaseChannel(key, system)
+    base_channel = base_channel_all['label']
+    child_channels_labels = [ch["label"] for ch in client.system.listSubscribedChildChannels(key, system)]
+    new_channels = [s['label'] for s in client.channel.software.listChildren(key, base_channel) if 'managertools' in s.get('label', '').lower()]
+    for channel in child_channels_labels:
+        if not "manager-tools" in channel and not "managertools" in channel:
+            new_channels.append(channel)
+    if dry_run:
+        log(f"Current subscribed channels: {child_channels_labels}")
+        log(f"Would be assigned new channels: {new_channels}")
+    else:
+        log(f"Current subscribed channels: {child_channels_labels}")
+        log(f"New channels to subscribe: {new_channels}")
+        client.system.scheduleChangeChannels(key, system, base_channel, new_channels, datetime.now())
+    log(f"Successfully processed system with id: {hostname}")
+
 def main():
     parser = argparse.ArgumentParser(formatter_class=RawTextHelpFormatter, description='''
 Usage:
@@ -256,6 +280,7 @@ Usage:
     - clmprojects: Process CLM projects. Provide 'all' or a project label.
     - activationkeys: Process activation keys. Provide 'all' or a key.
     - autoinstallprofiles: Process autoinstallation profiles. Provide 'all' or a label.
+    - systems: Process systems. Provide 'all' or a hostname.
     
     The script runs in dry-run mode by default.
 
@@ -268,6 +293,9 @@ Usage:
 
     - Process all CLM projects but don't promote changes to environments:
       python3 migrate_to_new_client_tools.py -c clmprojects all --frozen --no-dry-run
+    
+    - Process all systems:
+      python3 migrate_to_new_client_tools.py -c systems all --no-dry-run
 
     - Process a single activation key:
       python3 migrate_to_new_client_tools.py -c activationkeys 1-sles15sp4-x86_64
@@ -276,7 +304,7 @@ Usage:
       python3 migrate_to_new_client_tools.py -c autoinstallprofiles all --no-dry-run
     ''')
     
-    parser.add_argument("-c", "--component", choices=['clmprojects', 'activationkeys', 'autoinstallprofiles'], required=True, help="The component to process.")
+    parser.add_argument("-c", "--component", choices=['clmprojects', 'activationkeys', 'autoinstallprofiles', 'systems'], required=True, help="The component to process.")
     parser.add_argument("labels", nargs='+', help="The label(s) of the component to process, or 'all'.")
     parser.add_argument("--promote", action='store_true', default=False, help="(CLM only) - Only promote changes to environments if mentioned explictly'.")
     parser.add_argument("--frozen", action='store_true', default=False, help="(CLM only) - If fixed channels are used, don't update the channels with newer patches in clm projects. Defaults to 'False'.")
@@ -329,6 +357,13 @@ Usage:
             else:
                 profiles_to_process = labels_to_process
             process_autoinstallation_profiles(client, key, profiles_to_process, dry_run)
+
+        elif args.component == 'systems':
+            if 'all' in labels_to_process:
+                systems_to_process = [p['id'] for p in client.system.listActiveSystems(key)]
+            else:
+                systems_to_process = labels_to_process
+            process_systems(client, key, systems_to_process, dry_run)
 
     except Exception as e:
         print(f"[ERROR] An unexpected error occurred: {e}")
