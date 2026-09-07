@@ -24,19 +24,31 @@ build_updated_initrd = initrd_rpm_update.build_updated_initrd
 extract_rpms = initrd_rpm_update.extract_rpms
 get_active_initrd = initrd_rpm_update.get_active_initrd
 get_image_context = initrd_rpm_update.get_image_context
+_excluded_entry = initrd_rpm_update._excluded_entry
+_overlay_entries_filtered = initrd_rpm_update._overlay_entries_filtered
 install_and_register = initrd_rpm_update.install_and_register
 install_generated_file = initrd_rpm_update.install_generated_file
 next_output_name = initrd_rpm_update.next_output_name
 _install_file_exclusive = initrd_rpm_update._install_file_exclusive
 parse_args = initrd_rpm_update.parse_args
+resolve_reference_initrd = initrd_rpm_update.resolve_reference_initrd
 resolve_rpm_sources = initrd_rpm_update.resolve_rpm_sources
 run_update = initrd_rpm_update.run_update
 select_image = initrd_rpm_update.select_image
+build_manager_url = initrd_rpm_update.build_manager_url
 update_initrd_url = initrd_rpm_update.update_initrd_url
 updated_pillar = initrd_rpm_update.updated_pillar
 validate_pillar_for_update = initrd_rpm_update.validate_pillar_for_update
 validate_organization = initrd_rpm_update.validate_organization
 validate_overlay_member = initrd_rpm_update.validate_overlay_member
+
+
+class WarningStub:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def disable_warnings(self, warning_cls) -> None:
+        self.calls.append(warning_cls)
 
 
 class DummyApiClient:
@@ -82,6 +94,35 @@ def test_parse_args_org_default_and_type():
     )
     assert args.org_id == 1
     assert isinstance(args.org_id, int)
+    assert args.host == "manager.example.test"
+
+
+def test_parse_args_host_default():
+    args = parse_args(
+        [
+            "--initrd",
+            "/tmp/source-initrd",
+            "--rpm",
+            "/tmp/a.rpm",
+            "name",
+            "1.0",
+            "2",
+        ]
+    )
+    assert args.host == "localhost"
+
+
+def test_build_manager_url_localhost_and_non_localhost_defaults():
+    assert build_manager_url("localhost") == "https://localhost/rhn/manager/api/"
+    assert (
+        build_manager_url("localhost:8000") == "https://localhost:8000/rhn/manager/api/"
+    )
+    assert build_manager_url("manager.example.test") == (
+        "https://manager.example.test/rhn/manager/api/"
+    )
+    assert build_manager_url("https://manager.example.test") == (
+        "https://manager.example.test/rhn/manager/api/"
+    )
 
 
 def test_api_client_login(mock_session):
@@ -110,6 +151,40 @@ def test_api_client_failure(mock_session):
     client = ApiClient("https://example.com/rhn/manager/api/", verify_ssl=False)
     with pytest.raises(InitrdUpdateError, match="Login failed"):
         client.login("user", "secret")
+
+
+def test_main_disables_insecure_request_warning(monkeypatch):
+    warning_stub = WarningStub()
+    monkeypatch.setattr(initrd_rpm_update, "urllib3", warning_stub)
+    monkeypatch.setattr(initrd_rpm_update, "_resolve_password", lambda _args: "secret")
+
+    class ClientStub:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def login(self, *_args, **_kwargs):
+            return None
+
+    monkeypatch.setattr(initrd_rpm_update, "ApiClient", ClientStub)
+    monkeypatch.setattr(initrd_rpm_update, "run_update", lambda *_args, **_kwargs: "ok")
+
+    rc = initrd_rpm_update.main(
+        [
+            "--host",
+            "localhost",
+            "--insecure",
+            "--initrd",
+            "/tmp/source",
+            "--rpm",
+            "/tmp/a.rpm",
+            "name",
+            "1.0",
+            "1",
+        ]
+    )
+
+    assert rc == 0
+    assert warning_stub.calls == [initrd_rpm_update.InsecureRequestWarning]
 
 
 def test_validate_organization_passes_integer():
@@ -356,8 +431,8 @@ def test_build_overlay_member_constructs_commands(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         initrd_rpm_update,
-        "_overlay_entries",
-        lambda _overlay_dir: [".", "dir", "dir/file"],
+        "_overlay_entries_filtered",
+        lambda *_args, **_kwargs: [".", "dir", "dir/file"],
     )
 
     calls = []
@@ -384,7 +459,11 @@ def test_build_overlay_member_cpio_failure(monkeypatch, tmp_path):
     overlay.mkdir()
     output = tmp_path / "overlay.zst"
 
-    monkeypatch.setattr(initrd_rpm_update, "_overlay_entries", lambda _dir: ["."])
+    monkeypatch.setattr(
+        initrd_rpm_update,
+        "_overlay_entries_filtered",
+        lambda *_args, **_kwargs: ["."],
+    )
 
     def fake_run(command, **kwargs):
         if command[0] == "cpio":
@@ -402,7 +481,11 @@ def test_build_overlay_member_zstd_failure(monkeypatch, tmp_path):
     overlay.mkdir()
     output = tmp_path / "overlay.zst"
 
-    monkeypatch.setattr(initrd_rpm_update, "_overlay_entries", lambda _dir: ["."])
+    monkeypatch.setattr(
+        initrd_rpm_update,
+        "_overlay_entries_filtered",
+        lambda *_args, **_kwargs: ["."],
+    )
 
     def fake_run(command, **kwargs):
         if command[0] == "cpio":
@@ -468,6 +551,73 @@ def test_validate_overlay_member_zstd_decompression_failure(monkeypatch, tmp_pat
         validate_overlay_member(member)
 
 
+def test_excluded_entry_supports_names_paths_and_globs():
+    patterns = ["__pycache__", "*.pyc", "usr/lib/python*/site-packages/*"]
+
+    assert _excluded_entry("usr/lib/python3.11/site-packages/a.py", patterns, False)
+    assert _excluded_entry("usr/lib/python3.11/site-packages/pkg", patterns, True)
+    assert _excluded_entry("etc/__pycache__/x.pyc", patterns, False)
+    assert _excluded_entry("var/cache/app.pyc", patterns, False)
+    assert not _excluded_entry("usr/lib/other/file.txt", patterns, False)
+
+
+def test_overlay_entries_filtered_excludes_dirs_and_globs(tmp_path):
+    overlay = tmp_path / "overlay"
+    (overlay / "etc").mkdir(parents=True)
+    (overlay / "etc" / "ok.conf").write_text("ok")
+    (overlay / "etc" / "drop.pyc").write_text("pyc")
+    (overlay / "etc" / "__pycache__").mkdir()
+    (overlay / "etc" / "__pycache__" / "ignored.pyc").write_text("ignored")
+    (overlay / "usr" / "lib" / "python3.11" / "site-packages").mkdir(parents=True)
+    (overlay / "usr" / "lib" / "python3.11" / "site-packages" / "module.py").write_text(
+        "module"
+    )
+
+    entries = _overlay_entries_filtered(
+        overlay,
+        exclude_patterns=["__pycache__", "*.pyc", "usr/lib/python*/site-packages/*"],
+    )
+
+    assert "etc" in entries
+    assert "etc/ok.conf" in entries
+    assert "etc/drop.pyc" not in entries
+    assert "etc/__pycache__" not in entries
+    assert "etc/__pycache__/ignored.pyc" not in entries
+    assert "usr/lib/python3.11/site-packages/module.py" not in entries
+
+
+def test_build_overlay_member_passes_exclude_patterns(monkeypatch, tmp_path):
+    overlay = tmp_path / "overlay"
+    overlay.mkdir()
+    output = tmp_path / "overlay.zst"
+
+    captured = {}
+
+    def fake_entries_filtered(_overlay, exclude_patterns=None):
+        captured["patterns"] = exclude_patterns
+        return ["."]
+
+    monkeypatch.setattr(
+        initrd_rpm_update,
+        "_overlay_entries_filtered",
+        fake_entries_filtered,
+    )
+
+    def fake_run(command, **kwargs):
+        if command[0] == "cpio":
+            kwargs["stdout"].write(b"cpio")
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+        if command[0] == "zstd":
+            output.write_bytes(b"zstd")
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+        raise AssertionError(f"Unexpected command {command}")
+
+    monkeypatch.setattr(initrd_rpm_update.subprocess, "run", fake_run)
+
+    build_overlay_member(overlay, output, exclude_patterns=["__pycache__", "*.pyc"])
+    assert captured["patterns"] == ["__pycache__", "*.pyc"]
+
+
 def test_build_updated_initrd_appends_and_preserves_source(tmp_path):
     source = tmp_path / "source-initrd"
     overlay = tmp_path / "overlay.zst"
@@ -483,21 +633,22 @@ def test_build_updated_initrd_appends_and_preserves_source(tmp_path):
 
 def test_next_output_name_variants_and_large_numbers(tmp_path):
     api_files = [
-        "initrd-a",
-        "rpmupdate-1",
-        "rpmupdate-x",
-        "rpmupdate-3.old",
+        "my_image.initrd",
+        "my_image-rpmupdate-1.initrd",
+        "my_image-rpmupdate-x.initrd",
+        "my_image-rpmupdate-3.old",
         "other-rpmupdate-4",
-        "rpmupdate-999999999999999999999999",
+        "my_image-rpmupdate-999999999999999999999999.initrd",
     ]
-    (tmp_path / "rpmupdate-7").touch()
-    (tmp_path / "rpmupdate-8.old").touch()
-    (tmp_path / "rpmupdate-1000000000000000000000000").touch()
+    (tmp_path / "my_image-rpmupdate-7.initrd").touch()
+    (tmp_path / "my_image-rpmupdate-8.old").touch()
+    (tmp_path / "my_image-rpmupdate-1000000000000000000000000.initrd").touch()
 
     assert (
-        next_output_name(api_files, tmp_path) == "rpmupdate-1000000000000000000000001"
+        next_output_name("my_image.initrd", api_files, tmp_path)
+        == "my_image-rpmupdate-1000000000000000000000001.initrd"
     )
-    assert next_output_name([], []) == "rpmupdate-1"
+    assert next_output_name("my_image.initrd", [], []) == "my_image-rpmupdate-1.initrd"
 
 
 def test_install_generated_file_retries_on_collision(monkeypatch, tmp_path):
@@ -506,21 +657,22 @@ def test_install_generated_file_retries_on_collision(monkeypatch, tmp_path):
 
     store = tmp_path / "store"
     store.mkdir()
-    (store / "rpmupdate-1").write_bytes(b"old")
+    (store / "my_image.initrd").write_bytes(b"old")
+    (store / "my_image-rpmupdate-1.initrd").write_bytes(b"old")
 
     context = ImageContext(
         image_id=10,
         store_dir=store,
         files=[
             ImageFileRecord(
-                file="rpmupdate-1",
+                file="my_image-rpmupdate-1.initrd",
                 file_type="initrd",
                 external=False,
-                local_path=store / "rpmupdate-1",
+                local_path=store / "my_image-rpmupdate-1.initrd",
             )
         ],
-        initrd_files=[store / "rpmupdate-1"],
-        api_file_values=["rpmupdate-1"],
+        initrd_files=[store / "my_image.initrd"],
+        api_file_values=["my_image.initrd", "my_image-rpmupdate-1.initrd"],
         prefer_absolute_file_paths=False,
     )
 
@@ -530,17 +682,49 @@ def test_install_generated_file_retries_on_collision(monkeypatch, tmp_path):
     def fake_install(src, dst):
         attempts.append(dst.name)
         if len(attempts) == 1:
-            (store / "rpmupdate-2").write_bytes(b"concurrent")
+            (store / "my_image-rpmupdate-2.initrd").write_bytes(b"concurrent")
             raise FileExistsError("race")
         real_install(src, dst)
 
     monkeypatch.setattr(initrd_rpm_update, "_install_file_exclusive", fake_install)
-    installed = install_generated_file(source, context)
+    installed = install_generated_file(source, context, store / "my_image.initrd")
 
-    assert attempts == ["rpmupdate-2", "rpmupdate-3"]
-    assert installed.name == "rpmupdate-3"
-    assert (store / "rpmupdate-2").read_bytes() == b"concurrent"
+    assert attempts == ["my_image-rpmupdate-2.initrd", "my_image-rpmupdate-3.initrd"]
+    assert installed.name == "my_image-rpmupdate-3.initrd"
+    assert (store / "my_image-rpmupdate-2.initrd").read_bytes() == b"concurrent"
     assert installed.read_bytes() == b"new"
+
+
+def test_install_generated_file_uses_reference_initrd_directory(monkeypatch, tmp_path):
+    source = tmp_path / "generated-initrd"
+    source.write_bytes(b"new")
+
+    store = tmp_path / "store"
+    store.mkdir()
+    nested = store / "saltboot" / "profiles"
+    nested.mkdir(parents=True)
+    reference = nested / "my_image.initrd"
+    reference.write_bytes(b"orig")
+
+    context = ImageContext(
+        image_id=10,
+        store_dir=store,
+        files=[
+            ImageFileRecord(
+                file="saltboot/profiles/my_image.initrd",
+                file_type="initrd",
+                external=False,
+                local_path=reference,
+            )
+        ],
+        initrd_files=[reference],
+        api_file_values=["saltboot/profiles/my_image.initrd"],
+        prefer_absolute_file_paths=False,
+    )
+
+    installed = install_generated_file(source, context, reference)
+    assert installed.parent == nested
+    assert installed.name == "my_image-rpmupdate-1.initrd"
 
 
 def test_install_file_exclusive_cleans_partial_destination(monkeypatch, tmp_path):
@@ -581,6 +765,121 @@ def test_install_file_exclusive_reports_cleanup_failure(monkeypatch, tmp_path):
 
     with pytest.raises(InitrdUpdateError, match="Rollback failed"):
         _install_file_exclusive(source, destination)
+
+
+def test_resolve_reference_initrd_prefers_active_initrd(tmp_path):
+    store = tmp_path / "store"
+    store.mkdir()
+    initrd_a = store / "a.initrd"
+    initrd_b = store / "b.initrd"
+    initrd_a.write_bytes(b"a")
+    initrd_b.write_bytes(b"b")
+
+    context = ImageContext(
+        image_id=1,
+        store_dir=store,
+        files=[
+            ImageFileRecord(
+                file="a.initrd",
+                file_type="initrd",
+                external=False,
+                local_path=initrd_a,
+            ),
+            ImageFileRecord(
+                file="b.initrd",
+                file_type="initrd",
+                external=False,
+                local_path=initrd_b,
+            ),
+        ],
+        initrd_files=[initrd_a, initrd_b],
+        api_file_values=["a.initrd", "b.initrd"],
+        prefer_absolute_file_paths=False,
+    )
+
+    resolved = resolve_reference_initrd(
+        context,
+        source_initrd_name="manual-download.initrd",
+        active_initrd=Path("/srv/www/os-images/1/b.initrd"),
+    )
+    assert resolved == initrd_b
+
+
+def test_resolve_reference_initrd_skip_mode_by_source_name_or_single(tmp_path):
+    store = tmp_path / "store"
+    store.mkdir()
+    nested = store / "nested"
+    nested.mkdir()
+    initrd = nested / "my_image.initrd"
+    initrd.write_bytes(b"initrd")
+
+    context = ImageContext(
+        image_id=1,
+        store_dir=store,
+        files=[
+            ImageFileRecord(
+                file="nested/my_image.initrd",
+                file_type="initrd",
+                external=False,
+                local_path=initrd,
+            )
+        ],
+        initrd_files=[initrd],
+        api_file_values=["nested/my_image.initrd"],
+        prefer_absolute_file_paths=False,
+    )
+
+    resolved = resolve_reference_initrd(
+        context,
+        source_initrd_name="my_image.initrd",
+        active_initrd=None,
+    )
+    assert resolved == initrd
+
+    resolved_single = resolve_reference_initrd(
+        context,
+        source_initrd_name="other-name.initrd",
+        active_initrd=None,
+    )
+    assert resolved_single == initrd
+
+
+def test_resolve_reference_initrd_skip_mode_ambiguous(tmp_path):
+    store = tmp_path / "store"
+    store.mkdir()
+    initrd_a = store / "a.initrd"
+    initrd_b = store / "b.initrd"
+    initrd_a.write_bytes(b"a")
+    initrd_b.write_bytes(b"b")
+
+    context = ImageContext(
+        image_id=1,
+        store_dir=store,
+        files=[
+            ImageFileRecord(
+                file="a.initrd",
+                file_type="initrd",
+                external=False,
+                local_path=initrd_a,
+            ),
+            ImageFileRecord(
+                file="b.initrd",
+                file_type="initrd",
+                external=False,
+                local_path=initrd_b,
+            ),
+        ],
+        initrd_files=[initrd_a, initrd_b],
+        api_file_values=["a.initrd", "b.initrd"],
+        prefer_absolute_file_paths=False,
+    )
+
+    with pytest.raises(InitrdUpdateError, match="Skip-pillar mode is ambiguous"):
+        resolve_reference_initrd(
+            context,
+            source_initrd_name="different.initrd",
+            active_initrd=None,
+        )
 
 
 def test_update_initrd_url_preserves_query_and_fragment():
@@ -659,7 +958,7 @@ def test_install_and_register_payload_and_skip_pillar(monkeypatch, tmp_path):
     generated = tmp_path / "new-initrd"
     generated.write_bytes(b"new")
 
-    installed = store / "rpmupdate-8"
+    installed = store / "my_image-rpmupdate-8.initrd"
 
     context = ImageContext(
         image_id=9,
@@ -686,6 +985,7 @@ def test_install_and_register_payload_and_skip_pillar(monkeypatch, tmp_path):
         size=111,
         pillar=None,
         active_initrd=None,
+        reference_initrd=store / "my_image.initrd",
         skip_pillar=True,
     )
 
@@ -693,7 +993,12 @@ def test_install_and_register_payload_and_skip_pillar(monkeypatch, tmp_path):
     assert client.post_calls == [
         (
             "image/addImageFile",
-            {"imageId": 9, "file": "rpmupdate-8", "type": "initrd", "external": False},
+            {
+                "imageId": 9,
+                "file": "my_image-rpmupdate-8.initrd",
+                "type": "initrd",
+                "external": False,
+            },
         )
     ]
 
@@ -703,7 +1008,7 @@ def test_install_and_register_rolls_back_when_add_fails(monkeypatch, tmp_path):
     store.mkdir()
     generated = tmp_path / "new-initrd"
     generated.write_bytes(b"new")
-    installed = store / "rpmupdate-1"
+    installed = store / "my_image-rpmupdate-1.initrd"
     installed.write_bytes(b"new")
 
     context = ImageContext(
@@ -731,6 +1036,7 @@ def test_install_and_register_rolls_back_when_add_fails(monkeypatch, tmp_path):
             size=111,
             pillar=None,
             active_initrd=None,
+            reference_initrd=store / "my_image.initrd",
             skip_pillar=True,
         )
     assert not installed.exists()
@@ -741,7 +1047,7 @@ def test_install_and_register_rolls_back_after_pillar_failure(monkeypatch, tmp_p
     store.mkdir()
     generated = tmp_path / "new-initrd"
     generated.write_bytes(b"new")
-    installed = store / "rpmupdate-7"
+    installed = store / "my_image-rpmupdate-7.initrd"
     installed.write_bytes(b"new")
 
     context = ImageContext(
@@ -786,6 +1092,7 @@ def test_install_and_register_rolls_back_after_pillar_failure(monkeypatch, tmp_p
             size=111,
             pillar=pillar,
             active_initrd=Path("/srv/www/os-images/1/initrd"),
+            reference_initrd=store / "my_image.initrd",
             skip_pillar=False,
         )
 
@@ -801,7 +1108,7 @@ def test_install_and_register_reports_incomplete_rollback(monkeypatch, tmp_path)
     store.mkdir()
     generated = tmp_path / "new-initrd"
     generated.write_bytes(b"new")
-    installed = store / "rpmupdate-7"
+    installed = store / "my_image-rpmupdate-7.initrd"
     installed.write_bytes(b"new")
 
     context = ImageContext(
@@ -845,6 +1152,7 @@ def test_install_and_register_reports_incomplete_rollback(monkeypatch, tmp_path)
             size=111,
             pillar=pillar,
             active_initrd=Path("/srv/www/os-images/1/initrd"),
+            reference_initrd=store / "my_image.initrd",
             skip_pillar=False,
         )
 
@@ -856,6 +1164,7 @@ def test_run_update_skip_pillar_bypasses_pillar_calls(monkeypatch, tmp_path):
     args = Namespace(
         initrd=str(source_initrd),
         rpm=[str(tmp_path / "one.rpm")],
+        exclude=[],
         org_id=1,
         name="img",
         version="1",
@@ -866,7 +1175,14 @@ def test_run_update_skip_pillar_bypasses_pillar_calls(monkeypatch, tmp_path):
     context = ImageContext(
         image_id=9,
         store_dir=tmp_path,
-        files=[],
+        files=[
+            ImageFileRecord(
+                file="initrd",
+                file_type="initrd",
+                external=False,
+                local_path=tmp_path / "initrd",
+            )
+        ],
         initrd_files=[tmp_path / "initrd"],
         api_file_values=["initrd"],
         prefer_absolute_file_paths=False,
@@ -894,12 +1210,12 @@ def test_run_update_skip_pillar_bypasses_pillar_calls(monkeypatch, tmp_path):
     monkeypatch.setattr(
         initrd_rpm_update,
         "install_and_register",
-        lambda **kwargs: kwargs["image_context"].store_dir / "rpmupdate-1",
+        lambda **kwargs: kwargs["image_context"].store_dir / "initrd-rpmupdate-1",
     )
 
     message = run_update(client, args)
     assert "--skip-pillar" in message
-    assert "rpmupdate-1" in message
+    assert "initrd-rpmupdate-1" in message
     assert all(call[0] != "image/getPillar" for call in client.get_calls)
 
 
@@ -910,6 +1226,7 @@ def test_run_update_validates_pillar_before_install(monkeypatch, tmp_path):
     args = Namespace(
         initrd=str(source_initrd),
         rpm=[str(tmp_path / "one.rpm")],
+        exclude=[],
         org_id=1,
         name="img",
         version="1",
@@ -920,7 +1237,14 @@ def test_run_update_validates_pillar_before_install(monkeypatch, tmp_path):
     context = ImageContext(
         image_id=9,
         store_dir=tmp_path,
-        files=[],
+        files=[
+            ImageFileRecord(
+                file="initrd",
+                file_type="initrd",
+                external=False,
+                local_path=tmp_path / "initrd",
+            )
+        ],
         initrd_files=[tmp_path / "initrd"],
         api_file_values=["initrd"],
         prefer_absolute_file_paths=False,
@@ -972,6 +1296,70 @@ def test_run_update_validates_pillar_before_install(monkeypatch, tmp_path):
 
     assert called["extract"] is False
     assert called["install"] is False
+
+
+def test_run_update_passes_exclude_patterns_to_overlay_builder(monkeypatch, tmp_path):
+    source_initrd = tmp_path / "source"
+    source_initrd.write_bytes(b"source")
+
+    args = Namespace(
+        initrd=str(source_initrd),
+        rpm=[str(tmp_path / "one.rpm")],
+        exclude=["__pycache__", "*.pyc"],
+        org_id=1,
+        name="img",
+        version="1",
+        revision=1,
+        skip_pillar=True,
+    )
+
+    context = ImageContext(
+        image_id=9,
+        store_dir=tmp_path,
+        files=[
+            ImageFileRecord(
+                file="initrd",
+                file_type="initrd",
+                external=False,
+                local_path=tmp_path / "initrd",
+            )
+        ],
+        initrd_files=[tmp_path / "initrd"],
+        api_file_values=["initrd"],
+        prefer_absolute_file_paths=False,
+    )
+
+    client = DummyApiClient()
+    captured = {"exclude": None}
+
+    monkeypatch.setattr(
+        initrd_rpm_update, "resolve_rpm_sources", lambda _paths: [tmp_path / "one.rpm"]
+    )
+    monkeypatch.setattr(initrd_rpm_update, "verify_required_tools", lambda: None)
+    monkeypatch.setattr(initrd_rpm_update, "validate_organization", lambda *_args: None)
+    monkeypatch.setattr(initrd_rpm_update, "select_image", lambda *_args: 9)
+    monkeypatch.setattr(initrd_rpm_update, "get_image_context", lambda *_args: context)
+    monkeypatch.setattr(initrd_rpm_update, "extract_rpms", lambda *_args: None)
+
+    def capture_overlay(_overlay_dir, _output_path, exclude_patterns=None):
+        captured["exclude"] = exclude_patterns
+
+    monkeypatch.setattr(initrd_rpm_update, "build_overlay_member", capture_overlay)
+    monkeypatch.setattr(
+        initrd_rpm_update, "validate_overlay_member", lambda *_args: None
+    )
+    monkeypatch.setattr(initrd_rpm_update, "build_updated_initrd", lambda *_args: None)
+    monkeypatch.setattr(
+        initrd_rpm_update, "compute_md5_and_size", lambda *_args: ("abc", 100)
+    )
+    monkeypatch.setattr(
+        initrd_rpm_update,
+        "install_and_register",
+        lambda **kwargs: kwargs["image_context"].store_dir / "initrd-rpmupdate-1",
+    )
+
+    run_update(client, args)
+    assert captured["exclude"] == ["__pycache__", "*.pyc"]
 
 
 @pytest.mark.skipif(

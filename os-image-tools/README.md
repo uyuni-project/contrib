@@ -46,6 +46,25 @@ It does **not** modify the source initrd in place, and it does **not** replace o
 - Extraction is deterministic; later RPMs overwrite earlier files in the overlay.
 - Empty RPM directories are ignored, but the final resolved RPM list must not be empty.
 
+### Excluding files from overlay
+
+- Use repeatable `--exclude PATTERN` to exclude files/directories from the extracted RPM overlay.
+- Patterns support plain names and globs.
+- Name patterns (for example `__pycache__`) match path components recursively.
+- Glob patterns (for example `*.pyc`) match both basename and full relative path.
+- Example:
+
+```bash
+python3 os-image-tools/initrd-rpm-update.py \
+  --host localhost \
+  --insecure \
+  --initrd /root/downloaded/my_image.initrd \
+  --rpm /root/rpms \
+  --exclude __pycache__ \
+  --exclude '*.pyc' \
+  my-image 1.0 1
+```
+
 ### Organization and image selection
 
 - `--org-id` defaults to `1` and is validated with `org.getDetails`.
@@ -55,9 +74,10 @@ It does **not** modify the source initrd in place, and it does **not** replace o
 
 ### Output naming and cache-busting
 
-- New files are named `rpmupdate-N` where `N` is the next integer after scanning:
+- New files are created in the same directory as the currently registered source initrd.
+- New files are named `<original>-rpmupdate-N<suffix>` (for example `my_image-rpmupdate-1.initrd`) where `N` is the next integer after scanning:
   - image file records from `image.getDetails`
-  - files present in `/srv/www/os-images/<org-id>/`
+  - files present in the target initrd directory
 - The tool uses exclusive create/retry behavior to avoid overwrite on races.
 - This new filename helps avoid stale downstream proxy cache use of the original initrd path.
 
@@ -85,7 +105,6 @@ Use `--skip-pillar` to skip pillar calls entirely (`image.getPillar` and `image.
 
 ```bash
 python3 os-image-tools/initrd-rpm-update.py \
-  --host manager.example.com \
   --api-user admin \
   --org-id 1 \
   --initrd /root/downloaded/initrd \
@@ -93,3 +112,9 @@ python3 os-image-tools/initrd-rpm-update.py \
   --rpm /root/ptf/saltboot-fix.rpm \
   sle-micro 5.5 2
 ```
+
+Host behavior:
+
+- `--host` defaults to `localhost`.
+- If no URL scheme is provided, `https://` is used.
+- You can still pass an explicit URL such as `https://manager.example.com`.

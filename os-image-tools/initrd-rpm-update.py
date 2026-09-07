@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import argparse
 import copy
+import fnmatch
 import getpass
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -21,10 +23,11 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
 
 DEFAULT_CERT_PATH = "/srv/www/htdocs/pub/RHN-ORG-TRUSTED-SSL-CERT"
 DEFAULT_TIMEOUT = (10, 60)
-RPMUPDATE_NAME_RE = re.compile(r"^rpmupdate-(\d+)$")
 
 
 class InitrdUpdateError(RuntimeError):
@@ -74,24 +77,66 @@ class ApiClient:
         base_url: str,
         verify_ssl: str | bool = DEFAULT_CERT_PATH,
         timeout: tuple[int, int] = DEFAULT_TIMEOUT,
+        debug: bool = False,
         session: requests.Session | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/") + "/"
         self.verify_ssl = verify_ssl
         self.timeout = timeout
+        self.debug = debug
         self.session = session if session is not None else requests.Session()
 
     def login(self, username: str, password: str) -> None:
         try:
-            self.post("auth/login", {"login": username, "password": password})
+            self.post(
+                "auth/login",
+                {"login": username, "password": password},
+                expect_result=False,
+            )
         except InitrdUpdateError as exc:
             raise InitrdUpdateError(f"Login failed: {exc}") from exc
 
     def get(self, method: str, params: dict[str, Any] | None = None) -> Any:
         return self._request("GET", method, params=params)
 
-    def post(self, method: str, payload: dict[str, Any]) -> Any:
-        return self._request("POST", method, payload=payload)
+    def post(
+        self,
+        method: str,
+        payload: dict[str, Any],
+        expect_result: bool = True,
+    ) -> Any:
+        return self._request(
+            "POST", method, payload=payload, expect_result=expect_result
+        )
+
+    def _debug_log(self, message: str) -> None:
+        if self.debug:
+            print(f"DEBUG: {message}", file=os.sys.stderr)
+
+    def _sanitize_for_debug(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            sanitized: dict[str, Any] = {}
+            for key, item in value.items():
+                if any(
+                    secret in key.lower()
+                    for secret in ("pass", "password", "token", "secret")
+                ):
+                    sanitized[key] = "***"
+                else:
+                    sanitized[key] = self._sanitize_for_debug(item)
+            return sanitized
+        if isinstance(value, list):
+            return [self._sanitize_for_debug(item) for item in value]
+        return value
+
+    def _json_for_debug(self, value: Any) -> str:
+        try:
+            rendered = json.dumps(self._sanitize_for_debug(value), sort_keys=True)
+        except TypeError:
+            rendered = repr(value)
+        if len(rendered) > 2000:
+            return rendered[:2000] + "..."
+        return rendered
 
     def _request(
         self,
@@ -99,6 +144,7 @@ class ApiClient:
         method: str,
         params: dict[str, Any] | None = None,
         payload: dict[str, Any] | None = None,
+        expect_result: bool = True,
     ) -> Any:
         url = self.base_url + method
         request_kwargs: dict[str, Any] = {
@@ -110,6 +156,11 @@ class ApiClient:
         if payload is not None:
             request_kwargs["json"] = payload
 
+        self._debug_log(
+            f"HTTP {verb} {method} request params={self._json_for_debug(params)} "
+            f"payload={self._json_for_debug(payload)}"
+        )
+
         try:
             if verb == "GET":
                 response = self.session.get(url, **request_kwargs)
@@ -118,14 +169,27 @@ class ApiClient:
             else:
                 raise InitrdUpdateError(f"Unsupported HTTP verb: {verb}")
             response.raise_for_status()
+            self._debug_log(
+                f"HTTP {verb} {method} response status={response.status_code}"
+            )
         except requests.RequestException as exc:
             raise InitrdUpdateError(f"HTTP {verb} {method} failed: {exc}") from exc
+
+        response_text = response.text.strip()
+        if response_text:
+            truncated = response_text[:2000]
+            suffix = "..." if len(response_text) > 2000 else ""
+            self._debug_log(f"HTTP {verb} {method} raw body={truncated}{suffix}")
 
         try:
             body = response.json()
         except ValueError as exc:
+            snippet = response.text.strip().replace("\n", " ")
+            if len(snippet) > 300:
+                snippet = snippet[:300] + "..."
             raise InitrdUpdateError(
-                f"HTTP {verb} {method} returned malformed JSON"
+                f"HTTP {verb} {method} returned malformed JSON. "
+                f"Response snippet: {snippet!r}"
             ) from exc
 
         if not isinstance(body, dict):
@@ -144,9 +208,14 @@ class ApiClient:
             )
             raise InitrdUpdateError(f"API {method} failed: {message}")
 
+        if not expect_result:
+            return body.get("result")
+
         if "result" not in body:
+            keys = ", ".join(sorted(body.keys()))
             raise InitrdUpdateError(
-                f"HTTP {verb} {method} response did not include 'result'"
+                f"HTTP {verb} {method} response did not include 'result'. "
+                f"Response keys: {keys}"
             )
 
         return body["result"]
@@ -156,8 +225,10 @@ def build_manager_url(host: str) -> str:
     normalized = host.strip()
     if not normalized:
         raise InitrdUpdateError("Manager host cannot be empty")
+
     if not normalized.startswith(("http://", "https://")):
         normalized = f"https://{normalized}"
+
     return normalized.rstrip("/") + "/rhn/manager/api/"
 
 
@@ -418,7 +489,50 @@ def extract_rpms(rpms: Sequence[Path], overlay_dir: Path) -> None:
             )
 
 
-def _overlay_entries(overlay_dir: Path) -> list[str]:
+def _is_glob_pattern(value: str) -> bool:
+    return any(symbol in value for symbol in "*?[")
+
+
+def _excluded_entry(
+    rel_path: str, exclude_patterns: Sequence[str], is_dir: bool
+) -> bool:
+    normalized_rel_path = rel_path.strip("/")
+    path_obj = Path(normalized_rel_path)
+    basename = path_obj.name
+    components = path_obj.parts
+
+    for raw_pattern in exclude_patterns:
+        pattern = raw_pattern.strip()
+        if not pattern:
+            continue
+        normalized_pattern = pattern.strip("/")
+
+        if _is_glob_pattern(normalized_pattern):
+            if fnmatch.fnmatch(normalized_rel_path, normalized_pattern):
+                return True
+            if fnmatch.fnmatch(basename, normalized_pattern):
+                return True
+            continue
+
+        if "/" in normalized_pattern:
+            if normalized_rel_path == normalized_pattern:
+                return True
+            if is_dir and normalized_rel_path.startswith(normalized_pattern + "/"):
+                return True
+            continue
+
+        if normalized_pattern in components:
+            return True
+
+    return False
+
+
+def _overlay_entries_filtered(
+    overlay_dir: Path,
+    exclude_patterns: Sequence[str] | None = None,
+) -> list[str]:
+    patterns = list(exclude_patterns or [])
+
     seen: set[str] = {"."}
     entries = ["."]
 
@@ -427,6 +541,21 @@ def _overlay_entries(overlay_dir: Path) -> list[str]:
         filenames.sort()
 
         root_rel = Path(root).relative_to(overlay_dir)
+        if root_rel != Path(".") and _excluded_entry(
+            root_rel.as_posix(), patterns, True
+        ):
+            dirnames[:] = []
+            continue
+
+        kept_dirnames: list[str] = []
+        for dirname in dirnames:
+            rel_dir = (
+                root_rel / dirname if root_rel != Path(".") else Path(dirname)
+            ).as_posix()
+            if not _excluded_entry(rel_dir, patterns, True):
+                kept_dirnames.append(dirname)
+        dirnames[:] = kept_dirnames
+
         if root_rel != Path("."):
             rel_value = root_rel.as_posix()
             if rel_value not in seen:
@@ -445,6 +574,8 @@ def _overlay_entries(overlay_dir: Path) -> list[str]:
             rel_path = (
                 root_rel / filename if root_rel != Path(".") else Path(filename)
             ).as_posix()
+            if _excluded_entry(rel_path, patterns, False):
+                continue
             if rel_path not in seen:
                 entries.append(rel_path)
                 seen.add(rel_path)
@@ -452,8 +583,15 @@ def _overlay_entries(overlay_dir: Path) -> list[str]:
     return entries
 
 
-def build_overlay_member(overlay_dir: Path, output_path: Path) -> None:
-    entries = _overlay_entries(overlay_dir)
+def build_overlay_member(
+    overlay_dir: Path,
+    output_path: Path,
+    exclude_patterns: Sequence[str] | None = None,
+) -> None:
+    if exclude_patterns:
+        entries = _overlay_entries_filtered(overlay_dir, exclude_patterns)
+    else:
+        entries = _overlay_entries_filtered(overlay_dir)
     archive_input = "\0".join(entries).encode("utf-8") + b"\0"
 
     temp_cpio = output_path.with_suffix(output_path.suffix + ".cpio")
@@ -540,10 +678,18 @@ def compute_md5_and_size(path: Path) -> tuple[str, int]:
 
 
 def next_output_name(
+    original_name: str,
     api_files: Iterable[str | Path],
     store_entries: Iterable[str | Path] | Path,
 ) -> str:
     numbers: list[int] = []
+
+    original_path = Path(original_name)
+    suffix = "".join(original_path.suffixes)
+    prefix = original_name[: -len(suffix)] if suffix else original_name
+    pattern = re.compile(
+        r"^" + re.escape(prefix) + r"-rpmupdate-(\d+)" + re.escape(suffix) + r"$"
+    )
 
     names: list[str] = [Path(str(value)).name for value in api_files]
     if isinstance(store_entries, Path):
@@ -552,12 +698,12 @@ def next_output_name(
         names.extend(Path(str(value)).name for value in store_entries)
 
     for name in names:
-        match = RPMUPDATE_NAME_RE.fullmatch(name)
+        match = pattern.fullmatch(name)
         if match:
             numbers.append(int(match.group(1)))
 
     next_number = (max(numbers) + 1) if numbers else 1
-    return f"rpmupdate-{next_number}"
+    return f"{prefix}-rpmupdate-{next_number}{suffix}"
 
 
 def update_initrd_url(url: str, filename: str) -> str:
@@ -635,6 +781,60 @@ def validate_pillar_for_update(pillar: dict[str, Any], active_initrd: Path) -> N
     )
 
 
+def resolve_reference_initrd(
+    image_context: ImageContext,
+    source_initrd_name: str,
+    active_initrd: Path | None,
+) -> Path:
+    local_initrds = sorted(
+        {
+            record.local_path
+            for record in image_context.files
+            if record.file_type == "initrd"
+            and not record.external
+            and record.local_path is not None
+        },
+        key=str,
+    )
+
+    if not local_initrds:
+        raise InitrdUpdateError(
+            "Image does not have a non-external registered initrd file in the organization "
+            "store"
+        )
+
+    if active_initrd is not None:
+        if active_initrd in local_initrds:
+            return active_initrd
+
+        basename_matches = [
+            path for path in local_initrds if path.name == active_initrd.name
+        ]
+        if len(basename_matches) == 1:
+            return basename_matches[0]
+        if len(basename_matches) > 1:
+            raise InitrdUpdateError(
+                "Active initrd basename matches multiple non-external registered files"
+            )
+        raise InitrdUpdateError(
+            "Active initrd is not a non-external registered file in the organization store"
+        )
+
+    source_name_matches = [
+        path for path in local_initrds if path.name == source_initrd_name
+    ]
+    if len(source_name_matches) == 1:
+        return source_name_matches[0]
+
+    if len(local_initrds) == 1:
+        return local_initrds[0]
+
+    raise InitrdUpdateError(
+        "Skip-pillar mode is ambiguous: multiple registered non-external initrd files were "
+        "found and none uniquely matches the provided source initrd basename"
+    )
+
+
 def _api_file_value_for_path(image_context: ImageContext, path: Path) -> str:
     if image_context.prefer_absolute_file_paths:
         return str(path)
@@ -673,16 +873,29 @@ def _install_file_exclusive(source_path: Path, destination_path: Path) -> None:
         ) from exc
 
 
-def install_generated_file(new_initrd_path: Path, image_context: ImageContext) -> Path:
+def install_generated_file(
+    new_initrd_path: Path,
+    image_context: ImageContext,
+    reference_initrd: Path,
+) -> Path:
+    target_dir = reference_initrd.parent
+    existing_api_basenames = {
+        Path(value).name for value in image_context.api_file_values
+    }
+
     for _ in range(2048):
-        store_entries = [entry.name for entry in image_context.store_dir.iterdir()]
-        output_name = next_output_name(image_context.api_file_values, store_entries)
-        if output_name in {Path(value).name for value in image_context.api_file_values}:
+        store_entries = [entry.name for entry in target_dir.iterdir()]
+        output_name = next_output_name(
+            reference_initrd.name,
+            image_context.api_file_values,
+            store_entries,
+        )
+        if output_name in existing_api_basenames:
             raise InitrdUpdateError(
                 "Generated output name unexpectedly matches an existing image file"
             )
 
-        destination_path = image_context.store_dir / output_name
+        destination_path = target_dir / output_name
         try:
             _install_file_exclusive(new_initrd_path, destination_path)
             return destination_path
@@ -711,9 +924,14 @@ def install_and_register(
     size: int,
     pillar: dict[str, Any] | None,
     active_initrd: Path | None,
+    reference_initrd: Path,
     skip_pillar: bool,
 ) -> Path:
-    installed_path = install_generated_file(new_initrd_path, image_context)
+    installed_path = install_generated_file(
+        new_initrd_path,
+        image_context,
+        reference_initrd,
+    )
     api_file_value = _api_file_value_for_path(image_context, installed_path)
     add_payload = {
         "imageId": image_id,
@@ -809,6 +1027,17 @@ def run_update(client: ApiClient, args: argparse.Namespace) -> str:
         active_initrd = get_active_initrd(pillar, image_context.initrd_files)
         validate_pillar_for_update(pillar, active_initrd)
 
+    reference_initrd = resolve_reference_initrd(
+        image_context,
+        source_initrd_name=source_initrd.name,
+        active_initrd=active_initrd,
+    )
+    debug_log = getattr(client, "_debug_log", None)
+    if callable(debug_log):
+        debug_log(
+            f"Reference initrd for target directory and naming: {reference_initrd}"
+        )
+
     with tempfile.TemporaryDirectory(prefix="initrd-rpm-update-") as temp_dir_name:
         temp_dir = Path(temp_dir_name)
         overlay_dir = temp_dir / "overlay"
@@ -818,7 +1047,11 @@ def run_update(client: ApiClient, args: argparse.Namespace) -> str:
         new_initrd = temp_dir / "updated-initrd"
 
         extract_rpms(rpm_sources, overlay_dir)
-        build_overlay_member(overlay_dir, overlay_member)
+        build_overlay_member(
+            overlay_dir,
+            overlay_member,
+            getattr(args, "exclude", []),
+        )
         validate_overlay_member(overlay_member)
         build_updated_initrd(source_initrd, overlay_member, new_initrd)
         digest, size = compute_md5_and_size(new_initrd)
@@ -832,6 +1065,7 @@ def run_update(client: ApiClient, args: argparse.Namespace) -> str:
             size=size,
             pillar=pillar,
             active_initrd=active_initrd,
+            reference_initrd=reference_initrd,
             skip_pillar=args.skip_pillar,
         )
 
@@ -856,7 +1090,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog="Run this tool on a Uyuni/SUSE Manager server.",
     )
-    parser.add_argument("--host", required=True, help="Uyuni/SUSE Manager server host")
+    parser.add_argument(
+        "--host",
+        default="localhost",
+        help=(
+            "Uyuni/SUSE Manager server host (default: localhost). "
+            "When no scheme is provided, https is used"
+        ),
+    )
     parser.add_argument("--api-user", default="admin", help="API username")
     parser.add_argument(
         "--api-pass",
@@ -881,6 +1122,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="RPM file or directory with direct .rpm children (repeatable, ordered)",
     )
     parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PATTERN",
+        help=(
+            "Exclude files/directories from overlay by name or glob. Repeatable. "
+            "Examples: __pycache__, *.pyc, usr/lib/python*/site-packages/*"
+        ),
+    )
+    parser.add_argument(
         "--skip-pillar",
         action="store_true",
         help="Register the new initrd file but do not call image.getPillar/image.setPillar",
@@ -893,7 +1144,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--insecure",
         action="store_true",
-        help="Disable API TLS certificate verification (emergency use only)",
+        help=(
+            "Disable API TLS certificate verification (emergency use only). "
+            "Also suppresses urllib3 InsecureRequestWarning"
+        ),
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print debug logs for API requests/responses and workflow decisions",
     )
 
     parser.add_argument("name", help="Image name")
@@ -922,7 +1181,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         password = _resolve_password(args)
 
         verify_ssl: str | bool = False if args.insecure else args.ca_cert
-        client = ApiClient(build_manager_url(args.host), verify_ssl=verify_ssl)
+        if args.insecure:
+            urllib3.disable_warnings(InsecureRequestWarning)
+
+        client = ApiClient(
+            build_manager_url(args.host),
+            verify_ssl=verify_ssl,
+            debug=args.debug,
+        )
         client.login(args.api_user, password)
         print(run_update(client, args))
         return 0
