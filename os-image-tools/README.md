@@ -19,15 +19,15 @@ Emergency-only helper for Saltboot images.
 
 This tool creates a new initrd file from:
 
-1. A manually downloaded source initrd provided via `--initrd`
-2. One or more local RPM sources provided via repeatable `--rpm PATH`
+1. A source initrd. If `--initrd` is omitted, the script automatically discovers the sole registered non-external initrd candidate for the image from its registered files list (metadata-only discovery). If multiple candidates are registered (e.g. after a repeated update), omitting `--initrd` fails with an ambiguity error, and explicit path selection is required.
+2. One or more local RPM sources provided via repeatable `--rpm PATH`.
 
 It does **not** modify the source initrd in place, and it does **not** replace or unregister the original initrd. It appends a Zstandard-compressed `newc` CPIO overlay to a copied initrd and registers the result as an additional initrd file.
 
 ### Scope and warnings
 
 - Intended as an emergency Saltboot recovery/update tool.
-- Run on a Uyuni/SUSE Manager server.
+- Run on a Uyuni/SUSE Manager server filesystem directly or from its container host.
 - Uses only documented HTTP API calls for metadata operations.
 - GRUB/PXE/bootloader file updates are intentionally out of scope.
 
@@ -35,8 +35,7 @@ It does **not** modify the source initrd in place, and it does **not** replace o
 
 - Python 3.11+
 - Python package: `requests`
-- Host commands in `PATH`: `rpm2cpio`, `cpio`, `zstd`
-- Read/write access to `/srv/www/os-images/<org-id>/`
+- Build host commands in `PATH`: `rpm2cpio`, `cpio`, `zstd` (extraction and compression always happen locally on the script's execution machine)
 
 ### Local RPM behavior and ordering
 
@@ -58,27 +57,35 @@ It does **not** modify the source initrd in place, and it does **not** replace o
 python3 os-image-tools/initrd-rpm-update.py \
   --host localhost \
   --insecure \
-  --initrd /root/downloaded/my_image.initrd \
+  --imageid 123 \
   --rpm /root/rpms \
   --exclude __pycache__ \
-  --exclude '*.pyc' \
-  my-image 1.0 1
+  --exclude '*.pyc'
 ```
 
 ### Organization and image selection
 
-- `--org-id` defaults to `1` and is validated with `org.getDetails`.
-- Image is selected by exact `name`, `version`, and integer `revision` from `image.listImages`.
-- Zero or multiple matches fail with an explicit error.
-- Registered non-external image files are validated to remain inside `/srv/www/os-images/<org-id>/`.
+- Selected by required positive integer `--imageid` using the direct `image/getDetails` API. Image list enumeration is avoided.
+- `--org-id` defaults to `1` and is validated with `org.getDetails`. It is the user's responsibility to align the `--org-id` with the image's real organization.
+- Registered non-external image files are validated to reside inside the per-image directory: `/srv/www/os-images/<org-id>/<name>-<version>-<revision>/`.
+- Registered paths attempting directory traversal or escaping this per-image store directory are strictly rejected.
 
-### Output naming and cache-busting
+### Direct Execution vs. Container Host Mode (mgrctl)
+
+- The script automatically detects `mgrctl` in `PATH`.
+- **Direct Mode (no mgrctl):** Authoritative image store operations and file installations happen directly on the local filesystem.
+- **Host Mode (mgrctl present):** Assumes execution on a container host. File listings, absolute path staging, installations, permissions, and rollback/cleanup are performed inside the server container via `mgrctl cp` and safely quoted `mgrctl exec` commands.
+- **Local-First Lookup:** In either mode, the selected source initrd is searched on the local machine first. If missing and `mgrctl` is available, the absolute container path is safely downloaded to a local temporary workspace using `mgrctl cp`.
+- **Relative/Absolute Fallback:** Explicit relative initrd paths are resolved locally. If a relative explicit path is missing locally, execution fails with a clear instruction to provide an absolute path for container-side fallback.
+- **Atomic Linking:** Staging is uploaded to a unique container temporary filename first, and linked atomically to its final path inside the container via `ln` to guarantee no overwrites or races in concurrent writer situations.
+- **Service Readability:** The script ensures correct permissions (`chmod 644`) and ownership (attempting `chown :susemanager`) are applied to the final image files inside the container before registration.
+
+### Output Naming and Cache-Busting
 
 - New files are created in the same directory as the currently registered source initrd.
 - New files are named `<original>-rpmupdate-N<suffix>` (for example `my_image-rpmupdate-1.initrd`) where `N` is the next integer after scanning:
   - image file records from `image.getDetails`
-  - files present in the target initrd directory
-- The tool uses exclusive create/retry behavior to avoid overwrite on races.
+  - files present in the target initrd directory (via backend-aware listings)
 - This new filename helps avoid stale downstream proxy cache use of the original initrd path.
 
 ### Pillar updates
@@ -93,28 +100,37 @@ Use `--skip-pillar` to skip pillar calls entirely (`image.getPillar` and `image.
 
 ### Failure and rollback behavior
 
-- Temporary build artifacts are cleaned up automatically.
-- If `image.addImageFile` fails, the newly installed file is removed.
+- Temporary build and staging artifacts are cleaned up automatically on both success and failure.
+- If `image.addImageFile` fails, the newly installed file is removed from the store (using direct filesystem commands or container operations).
 - If `image.setPillar` fails after registration, the tool attempts to:
   1. unregister the new image file (`image.deleteImageFile`)
-  2. remove the new physical file
-- On rollback problems, the error includes explicit manual cleanup steps.
+  2. remove the new file from the store
+- On rollback problems or ambiguous network failures, the error report includes detailed manual cleanup instructions.
 - The original initrd file and registration are never deleted, renamed, overwritten, or unregistered.
 
-### Example
+### TLS & CA Certificate Retrieval
 
+- Default CA certificate path is `/srv/www/htdocs/pub/RHN-ORG-TRUSTED-SSL-CERT`.
+- In container host mode, if the default CA path is missing locally, the script retrieves it from the container using `mgrctl cp` before constructing the API client and retains it for the entire API session.
+- Explicit `--ca-cert PATH` takes precedence and fails clearly if missing.
+- Use `--insecure` to bypass TLS verification entirely.
+- **Alignment:** The API `--host` endpoint and `mgrctl` container target must refer to the same Uyuni instance.
+
+### Examples
+
+**Automatic Candidate Discovery (omitting `--initrd`):**
 ```bash
 python3 os-image-tools/initrd-rpm-update.py \
-  --api-user admin \
+  --imageid 123 \
   --org-id 1 \
-  --initrd /root/downloaded/initrd \
-  --rpm /root/rpms/ \
-  --rpm /root/ptf/saltboot-fix.rpm \
-  sle-micro 5.5 2
+  --rpm /root/rpms/
 ```
 
-Host behavior:
-
-- `--host` defaults to `localhost`.
-- If no URL scheme is provided, `https://` is used.
-- You can still pass an explicit URL such as `https://manager.example.com`.
+**Explicit Source/Reference Selection:**
+```bash
+python3 os-image-tools/initrd-rpm-update.py \
+  --imageid 123 \
+  --org-id 1 \
+  --initrd /srv/www/os-images/1/my-image-1.0-1/my-image.initrd \
+  --rpm /root/ptf/saltboot-fix.rpm
+```

@@ -50,10 +50,128 @@ class ImageFileRecord:
 class ImageContext:
     image_id: int
     store_dir: Path
+    image_dir: Path
     files: list[ImageFileRecord]
     initrd_files: list[Path]
     api_file_values: list[str]
     prefer_absolute_file_paths: bool
+
+
+import shlex
+
+def is_host_mode() -> bool:
+    return getattr(is_host_mode, "_cache", False)
+
+is_host_mode._cache = shutil.which("mgrctl") is not None
+
+
+def store_is_dir(path: Path) -> bool:
+    if is_host_mode():
+        cmd_str = f"[ -d {shlex.quote(str(path))} ]"
+        res = subprocess.run(["mgrctl", "exec", cmd_str], capture_output=True, check=False)
+        return res.returncode == 0
+    else:
+        return path.is_dir()
+
+
+def store_list_dir(path: Path) -> list[str]:
+    if is_host_mode():
+        cmd_str = f"ls -1 {shlex.quote(str(path))}"
+        res = subprocess.run(["mgrctl", "exec", cmd_str], capture_output=True, check=False)
+        if res.returncode != 0:
+            return []
+        output = res.stdout.decode("utf-8", errors="replace").strip()
+        return [line.strip() for line in output.splitlines() if line.strip()]
+    else:
+        if path.is_dir():
+            return [entry.name for entry in path.iterdir()]
+        return []
+
+
+def store_remove_file(path: Path) -> str | None:
+    if is_host_mode():
+        cmd_str = f"rm -f {shlex.quote(str(path))}"
+        res = subprocess.run(["mgrctl", "exec", cmd_str], capture_output=True, check=False)
+        if res.returncode != 0:
+            return f"failed to remove container file {path}: {res.stderr.decode('utf-8', errors='replace').strip()}"
+        return None
+    else:
+        try:
+            path.unlink()
+            return None
+        except OSError as exc:
+            return f"failed to remove local file {path}: {exc}"
+
+
+def store_install_file_exclusive(local_source: Path, destination_path: Path) -> None:
+    """Installs local_source into destination_path on the store.
+
+    Raises FileExistsError if destination_path already exists.
+    Raises InitrdUpdateError on other errors.
+    """
+    if is_host_mode():
+        staging_path = destination_path.with_name(destination_path.name + ".staging")
+        cmd_cp = ["mgrctl", "cp", str(local_source), f"server:{staging_path}"]
+        res_cp = subprocess.run(cmd_cp, capture_output=True, check=False)
+        if res_cp.returncode != 0:
+            err = res_cp.stderr.decode("utf-8", errors="replace").strip()
+            raise InitrdUpdateError(f"Failed to copy staging file to container: {err}")
+
+        try:
+            cmd_ln = f"ln {shlex.quote(str(staging_path))} {shlex.quote(str(destination_path))}"
+            res_ln = subprocess.run(["mgrctl", "exec", cmd_ln], capture_output=True, check=False)
+
+            if res_ln.returncode != 0:
+                cmd_exists = f"[ -f {shlex.quote(str(destination_path))} ]"
+                res_exists = subprocess.run(["mgrctl", "exec", cmd_exists], capture_output=True, check=False)
+                if res_exists.returncode == 0:
+                    raise FileExistsError(f"Destination {destination_path} already exists in container")
+                else:
+                    err_ln = res_ln.stderr.decode("utf-8", errors="replace").strip()
+                    raise InitrdUpdateError(f"Failed to create hard link inside container: {err_ln}")
+
+            cmd_chmod = f"chmod 644 {shlex.quote(str(destination_path))} && (chown :susemanager {shlex.quote(str(destination_path))} || true)"
+            subprocess.run(["mgrctl", "exec", cmd_chmod], capture_output=True, check=False)
+
+        finally:
+            cmd_rm = f"rm -f {shlex.quote(str(staging_path))}"
+            subprocess.run(["mgrctl", "exec", cmd_rm], capture_output=True, check=False)
+
+    else:
+        source_stat = local_source.stat()
+        try:
+            fd = os.open(
+                destination_path,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                source_stat.st_mode & 0o777,
+            )
+        except FileExistsError:
+            raise
+        except OSError as exc:
+            raise InitrdUpdateError(
+                f"Failed to create destination file {destination_path}: {exc}"
+            ) from exc
+
+        try:
+            with os.fdopen(fd, "wb") as destination, local_source.open("rb") as source:
+                shutil.copyfileobj(source, destination)
+            os.utime(destination_path, (source_stat.st_atime, source_stat.st_mtime))
+            destination_path.chmod(0o644)
+            try:
+                shutil.chown(destination_path, group="susemanager")
+            except Exception:
+                pass
+        except Exception as exc:
+            cleanup_error = store_remove_file(destination_path)
+            if cleanup_error is not None:
+                raise InitrdUpdateError(
+                    f"Exclusive install failed for {destination_path}: {exc}. "
+                    f"Rollback failed: {cleanup_error}. Manual cleanup required."
+                ) from exc
+            raise InitrdUpdateError(
+                f"Exclusive install failed for {destination_path}: {exc}. "
+                "Partial destination file was removed."
+            ) from exc
 
 
 def _format_api_messages(messages: Any) -> str:
@@ -236,60 +354,42 @@ def validate_organization(client: ApiClient, org_id: int) -> None:
     client.get("org/getDetails", params={"orgId": int(org_id)})
 
 
-def select_image(client: ApiClient, name: str, version: str, revision: int) -> int:
-    result = client.get("image/listImages")
-    if not isinstance(result, list):
-        raise InitrdUpdateError("image/listImages returned an unexpected payload")
-
-    matches = [
-        image
-        for image in result
-        if isinstance(image, dict)
-        and image.get("name") == name
-        and image.get("version") == version
-        and image.get("revision") == int(revision)
-    ]
-
-    if not matches:
-        raise InitrdUpdateError(
-            f"No image found matching name={name!r}, version={version!r}, revision={revision}"
-        )
-
-    if len(matches) > 1:
-        raise InitrdUpdateError(
-            "Multiple images found matching the requested name/version/revision; "
-            "refine the selector"
-        )
-
-    image_id = matches[0].get("id")
-    if not isinstance(image_id, int):
-        raise InitrdUpdateError("Selected image did not include a valid integer id")
-    return image_id
-
-
-def _resolve_registered_path(store_dir: Path, registered_file: str) -> Path:
+def _resolve_registered_path(org_store: Path, image_dir: Path, registered_file: str) -> Path:
     raw_path = Path(registered_file)
     if ".." in raw_path.parts:
         raise InitrdUpdateError(
-            f"Registered file path {registered_file!r} escapes organization store directory"
+            f"Registered file path {registered_file!r} escapes store directories"
         )
 
-    candidate = raw_path if raw_path.is_absolute() else store_dir / raw_path
-    resolved_store = store_dir.resolve(strict=False)
-    resolved_candidate = candidate.resolve(strict=False)
+    if raw_path.is_absolute():
+        candidate = raw_path
+    else:
+        # Avoid prepending the image directory twice
+        parts = raw_path.parts
+        if parts and parts[0] == image_dir.name:
+            candidate = org_store / raw_path
+        else:
+            candidate = image_dir / raw_path
+
+    # Logical validation of containment
     try:
-        resolved_candidate.relative_to(resolved_store)
+        norm_org = Path(os.path.normpath(org_store.absolute()))
+        norm_image = Path(os.path.normpath(image_dir.absolute()))
+        norm_candidate = Path(os.path.normpath(candidate.absolute()))
+        norm_candidate.relative_to(norm_org)
+        norm_candidate.relative_to(norm_image)
     except ValueError as exc:
         raise InitrdUpdateError(
-            f"Registered file path {registered_file!r} escapes organization store directory"
+            f"Registered file path {registered_file!r} escapes store directory or expected image directory"
         ) from exc
-    return resolved_candidate
+
+    return norm_candidate
 
 
 def get_image_context(
-    client: ApiClient, image_id: int, org_store: Path
+    client: ApiClient, image_id: int, org_store: Path, image_dir: Path
 ) -> ImageContext:
-    if not org_store.is_dir():
+    if not store_is_dir(org_store):
         raise InitrdUpdateError(f"Organization store directory not found: {org_store}")
 
     details = client.get("image/getDetails", params={"imageId": image_id})
@@ -324,7 +424,7 @@ def get_image_context(
         local_path: Path | None = None
 
         if not external:
-            local_path = _resolve_registered_path(org_store, file_value)
+            local_path = _resolve_registered_path(org_store, image_dir, file_value)
             if prefer_absolute is None:
                 prefer_absolute = Path(file_value).is_absolute()
 
@@ -337,18 +437,18 @@ def get_image_context(
         records.append(record)
 
         if file_type == "initrd":
-            initrd_files.append(
-                local_path if local_path is not None else Path(file_value)
-            )
+            if not external and local_path is not None:
+                initrd_files.append(local_path)
 
     if not initrd_files:
         raise InitrdUpdateError(
-            "No registered initrd image files were found on the image"
+            "No registered non-external initrd image files were found on the image"
         )
 
     return ImageContext(
         image_id=image_id,
         store_dir=org_store,
+        image_dir=image_dir,
         files=records,
         initrd_files=initrd_files,
         api_file_values=[record.file for record in records],
@@ -781,96 +881,10 @@ def validate_pillar_for_update(pillar: dict[str, Any], active_initrd: Path) -> N
     )
 
 
-def resolve_reference_initrd(
-    image_context: ImageContext,
-    source_initrd_name: str,
-    active_initrd: Path | None,
-) -> Path:
-    local_initrds = sorted(
-        {
-            record.local_path
-            for record in image_context.files
-            if record.file_type == "initrd"
-            and not record.external
-            and record.local_path is not None
-        },
-        key=str,
-    )
-
-    if not local_initrds:
-        raise InitrdUpdateError(
-            "Image does not have a non-external registered initrd file in the organization "
-            "store"
-        )
-
-    if active_initrd is not None:
-        if active_initrd in local_initrds:
-            return active_initrd
-
-        basename_matches = [
-            path for path in local_initrds if path.name == active_initrd.name
-        ]
-        if len(basename_matches) == 1:
-            return basename_matches[0]
-        if len(basename_matches) > 1:
-            raise InitrdUpdateError(
-                "Active initrd basename matches multiple non-external registered files"
-            )
-        raise InitrdUpdateError(
-            "Active initrd is not a non-external registered file in the organization store"
-        )
-
-    source_name_matches = [
-        path for path in local_initrds if path.name == source_initrd_name
-    ]
-    if len(source_name_matches) == 1:
-        return source_name_matches[0]
-
-    if len(local_initrds) == 1:
-        return local_initrds[0]
-
-    raise InitrdUpdateError(
-        "Skip-pillar mode is ambiguous: multiple registered non-external initrd files were "
-        "found and none uniquely matches the provided source initrd basename"
-    )
-
-
 def _api_file_value_for_path(image_context: ImageContext, path: Path) -> str:
     if image_context.prefer_absolute_file_paths:
         return str(path)
     return path.relative_to(image_context.store_dir).as_posix()
-
-
-def _install_file_exclusive(source_path: Path, destination_path: Path) -> None:
-    source_stat = source_path.stat()
-    try:
-        fd = os.open(
-            destination_path,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-            source_stat.st_mode & 0o777,
-        )
-    except FileExistsError:
-        raise
-    except OSError as exc:
-        raise InitrdUpdateError(
-            f"Failed to create destination file {destination_path}: {exc}"
-        ) from exc
-
-    try:
-        with os.fdopen(fd, "wb") as destination, source_path.open("rb") as source:
-            shutil.copyfileobj(source, destination)
-        os.utime(destination_path, (source_stat.st_atime, source_stat.st_mtime))
-    except Exception as exc:
-        cleanup_error = _remove_file(destination_path)
-        if cleanup_error is not None:
-            raise InitrdUpdateError(
-                f"Exclusive install failed for {destination_path}: {exc}. "
-                f"Rollback failed: {cleanup_error}. Manual cleanup required."
-            ) from exc
-        raise InitrdUpdateError(
-            f"Exclusive install failed for {destination_path}: {exc}. "
-            "Partial destination file was removed."
-        ) from exc
 
 
 def install_generated_file(
@@ -884,7 +898,7 @@ def install_generated_file(
     }
 
     for _ in range(2048):
-        store_entries = [entry.name for entry in target_dir.iterdir()]
+        store_entries = store_list_dir(target_dir)
         output_name = next_output_name(
             reference_initrd.name,
             image_context.api_file_values,
@@ -897,7 +911,7 @@ def install_generated_file(
 
         destination_path = target_dir / output_name
         try:
-            _install_file_exclusive(new_initrd_path, destination_path)
+            store_install_file_exclusive(new_initrd_path, destination_path)
             return destination_path
         except FileExistsError:
             continue
@@ -905,14 +919,6 @@ def install_generated_file(
     raise InitrdUpdateError(
         "Unable to install generated initrd because rpmupdate-N names keep colliding"
     )
-
-
-def _remove_file(path: Path) -> str | None:
-    try:
-        path.unlink()
-        return None
-    except OSError as exc:
-        return f"failed to remove file {path}: {exc}"
 
 
 def install_and_register(
@@ -943,12 +949,12 @@ def install_and_register(
     try:
         client.post("image/addImageFile", add_payload)
     except InitrdUpdateError as add_error:
-        removal_error = _remove_file(installed_path)
+        removal_error = store_remove_file(installed_path)
         if removal_error is not None:
             raise InitrdUpdateError(
                 "image.addImageFile failed and rollback could not remove the new file. "
                 f"Original error: {add_error}. Rollback error: {removal_error}. "
-                f"Manual cleanup: remove {installed_path}"
+                f"Manual cleanup: remove {installed_path} in the store filesystem"
             ) from add_error
         raise
 
@@ -983,7 +989,7 @@ def install_and_register(
         except InitrdUpdateError as cleanup_error:
             rollback_errors.append(f"failed to unregister image file: {cleanup_error}")
 
-        remove_error = _remove_file(installed_path)
+        remove_error = store_remove_file(installed_path)
         if remove_error is not None:
             rollback_errors.append(remove_error)
 
@@ -992,7 +998,7 @@ def install_and_register(
                 "image.setPillar failed and rollback was incomplete. "
                 f"Original error: {pillar_error}. Rollback errors: {'; '.join(rollback_errors)}. "
                 "Manual cleanup: unregister the new initrd with image.deleteImageFile "
-                f"(imageId={image_id}, file={api_file_value!r}) and remove {installed_path}"
+                f"(imageId={image_id}, file={api_file_value!r}) and remove {installed_path} in the store filesystem"
             ) from pillar_error
 
         raise InitrdUpdateError(
@@ -1004,17 +1010,32 @@ def install_and_register(
 
 
 def run_update(client: ApiClient, args: argparse.Namespace) -> str:
-    source_initrd = Path(args.initrd).expanduser().resolve()
-    if not source_initrd.is_file():
-        raise InitrdUpdateError(f"Source initrd does not exist: {source_initrd}")
-
     rpm_sources = resolve_rpm_sources(args.rpm)
     verify_required_tools()
 
-    org_store = Path("/srv/www/os-images") / str(args.org_id)
     validate_organization(client, args.org_id)
-    image_id = select_image(client, args.name, args.version, args.revision)
-    image_context = get_image_context(client, image_id, org_store)
+    image_id = args.imageid
+
+    # Retrieve image details
+    details = client.get("image/getDetails", params={"imageId": image_id})
+    if not isinstance(details, dict):
+        raise InitrdUpdateError("image/getDetails returned an unexpected payload")
+
+    name = details.get("name")
+    version = details.get("version")
+    revision = details.get("revision")
+
+    # Validate metadata to prevent traversal, separators, malformed values
+    if not isinstance(name, str) or not name or "/" in name or "\\" in name or ".." in name:
+        raise InitrdUpdateError(f"image/getDetails returned an invalid or unsafe image name: {name!r}")
+    if not isinstance(version, str) or not version or "/" in version or "\\" in version or ".." in version:
+        raise InitrdUpdateError(f"image/getDetails returned an invalid or unsafe image version: {version!r}")
+    if revision is None or not str(revision).isdigit() or "/" in str(revision) or "\\" in str(revision) or ".." in str(revision):
+        raise InitrdUpdateError(f"image/getDetails returned an invalid or unsafe image revision: {revision!r}")
+
+    org_store = Path("/srv/www/os-images") / str(args.org_id)
+    image_dir = org_store / f"{name}-{version}-{revision}"
+    image_context = get_image_context(client, image_id, org_store, image_dir)
 
     pillar: dict[str, Any] | None = None
     active_initrd: Path | None = None
@@ -1027,19 +1048,115 @@ def run_update(client: ApiClient, args: argparse.Namespace) -> str:
         active_initrd = get_active_initrd(pillar, image_context.initrd_files)
         validate_pillar_for_update(pillar, active_initrd)
 
-    reference_initrd = resolve_reference_initrd(
-        image_context,
-        source_initrd_name=source_initrd.name,
-        active_initrd=active_initrd,
-    )
+    # Candidate selection
+    candidates = [r for r in image_context.files if r.file_type == "initrd" and not r.external]
+
+    if not args.initrd:
+        # No explicit --initrd
+        if not candidates:
+            raise InitrdUpdateError(
+                f"No non-external registered initrd files found for image ID {image_id}"
+            )
+        elif len(candidates) == 1:
+            reference_record = candidates[0]
+            source_server_path = reference_record.local_path
+        else:
+            cand_paths = "\n".join(f"  - {cand.local_path}" for cand in candidates)
+            raise InitrdUpdateError(
+                f"Multiple registered initrd files found for image ID {image_id}. "
+                "Omit --initrd only when exactly one candidate exists. Candidates:\n"
+                f"{cand_paths}\n"
+                "Please re-run specifying one of these paths using --initrd PATH"
+            )
+    else:
+        # Explicit --initrd
+        explicit_path = Path(args.initrd).expanduser()
+
+        if not candidates:
+            raise InitrdUpdateError(
+                f"No non-external registered initrd files found for image ID {image_id}"
+            )
+
+        exact_match = None
+        normalized_explicit = Path(os.path.normpath(explicit_path.absolute()))
+        for cand in candidates:
+            if cand.local_path:
+                norm_cand = Path(os.path.normpath(cand.local_path.absolute()))
+                if norm_cand == normalized_explicit:
+                    exact_match = cand
+                    break
+
+        if exact_match:
+            reference_record = exact_match
+        else:
+            basename_matches = [cand for cand in candidates if cand.basename == explicit_path.name]
+            if len(basename_matches) == 1:
+                reference_record = basename_matches[0]
+            elif len(basename_matches) > 1:
+                cand_paths = ", ".join(str(c.local_path) for c in basename_matches)
+                raise InitrdUpdateError(
+                    f"Explicit initrd basename {explicit_path.name!r} matches multiple registered initrds: {cand_paths}"
+                )
+            else:
+                if len(candidates) == 1:
+                    reference_record = candidates[0]
+                else:
+                    cand_paths = ", ".join(str(c.local_path) for c in candidates)
+                    raise InitrdUpdateError(
+                        f"Unable to resolve registered naming reference for explicit initrd {args.initrd!r}. "
+                        f"Candidates are: {cand_paths}"
+                    )
+
+        source_server_path = explicit_path
+
+    # Local-first lookup of the source initrd bytes
+    local_source_initrd: Path | None = None
+    try:
+        if source_server_path.exists() and source_server_path.is_file():
+            with source_server_path.open("rb"):
+                pass
+            local_source_initrd = source_server_path
+    except PermissionError as exc:
+        raise InitrdUpdateError(f"Permission denied reading local file {source_server_path}: {exc}")
+    except Exception:
+        pass
+
+    if local_source_initrd is None:
+        if not source_server_path.is_absolute():
+            raise InitrdUpdateError(
+                f"Explicit relative initrd path {source_server_path} was not found locally. "
+                "Please provide a readable local file or specify an absolute server path for container retrieval."
+            )
+        if not is_host_mode():
+            raise InitrdUpdateError(
+                f"Source initrd file not found on local filesystem: {source_server_path}"
+            )
+
     debug_log = getattr(client, "_debug_log", None)
     if callable(debug_log):
         debug_log(
-            f"Reference initrd for target directory and naming: {reference_initrd}"
+            f"Reference initrd for target directory and naming: {reference_record.local_path}"
         )
 
     with tempfile.TemporaryDirectory(prefix="initrd-rpm-update-") as temp_dir_name:
         temp_dir = Path(temp_dir_name)
+
+        if local_source_initrd is None:
+            downloaded_source = temp_dir / "downloaded-source-initrd"
+            cmd_cp = ["mgrctl", "cp", f"server:{source_server_path}", str(downloaded_source)]
+            res_cp = subprocess.run(cmd_cp, capture_output=True, check=False)
+            if res_cp.returncode != 0:
+                err = res_cp.stderr.decode("utf-8", errors="replace").strip()
+                raise InitrdUpdateError(
+                    f"Source initrd was not found locally, and retrieving it from container "
+                    f"path {source_server_path} failed: {err}"
+                )
+            if not downloaded_source.is_file():
+                raise InitrdUpdateError(
+                    f"Fetched container file {source_server_path} is not a regular file or is empty."
+                )
+            local_source_initrd = downloaded_source
+
         overlay_dir = temp_dir / "overlay"
         overlay_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1053,7 +1170,7 @@ def run_update(client: ApiClient, args: argparse.Namespace) -> str:
             getattr(args, "exclude", []),
         )
         validate_overlay_member(overlay_member)
-        build_updated_initrd(source_initrd, overlay_member, new_initrd)
+        build_updated_initrd(local_source_initrd, overlay_member, new_initrd)
         digest, size = compute_md5_and_size(new_initrd)
 
         installed_path = install_and_register(
@@ -1065,7 +1182,7 @@ def run_update(client: ApiClient, args: argparse.Namespace) -> str:
             size=size,
             pillar=pillar,
             active_initrd=active_initrd,
-            reference_initrd=reference_initrd,
+            reference_initrd=reference_record.local_path,
             skip_pillar=args.skip_pillar,
         )
 
@@ -1080,6 +1197,16 @@ def run_update(client: ApiClient, args: argparse.Namespace) -> str:
         f"Completed: new initrd registered as {installed_path.name} with md5={digest} "
         f"and size={size}"
     )
+
+
+def positive_int(value: str) -> int:
+    try:
+        val = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a valid integer")
+    if val <= 0:
+        raise argparse.ArgumentTypeError(f"{val} must be a positive integer (> 0)")
+    return val
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1110,9 +1237,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Uyuni organization id (default: 1)",
     )
     parser.add_argument(
-        "--initrd",
+        "--imageid",
+        type=positive_int,
         required=True,
-        help="Path to a manually downloaded source initrd",
+        help="Numeric ID of the image to select and update",
+    )
+    parser.add_argument(
+        "--initrd",
+        help="Path to a manually downloaded source initrd (optional)",
     )
     parser.add_argument(
         "--rpm",
@@ -1154,10 +1286,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print debug logs for API requests/responses and workflow decisions",
     )
-
-    parser.add_argument("name", help="Image name")
-    parser.add_argument("version", help="Image version")
-    parser.add_argument("revision", type=int, help="Image revision")
     return parser
 
 
@@ -1176,11 +1304,38 @@ def _resolve_password(args: argparse.Namespace) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    temp_ca_file: Path | None = None
     try:
         args = parse_args(argv)
         password = _resolve_password(args)
 
+        # Detect host mode early
+        is_host_mode._cache = shutil.which("mgrctl") is not None
+
         verify_ssl: str | bool = False if args.insecure else args.ca_cert
+
+        if not args.insecure:
+            ca_path = Path(args.ca_cert)
+            if not ca_path.is_file():
+                if is_host_mode():
+                    fd, path_str = tempfile.mkstemp(prefix="ca-cert-", suffix=".crt")
+                    os.close(fd)
+                    temp_ca_file = Path(path_str)
+
+                    cmd_cp = ["mgrctl", "cp", f"server:{args.ca_cert}", str(temp_ca_file)]
+                    res_cp = subprocess.run(cmd_cp, capture_output=True, check=False)
+                    if res_cp.returncode != 0:
+                        err_msg = res_cp.stderr.decode("utf-8", errors="replace").strip()
+                        raise InitrdUpdateError(
+                            f"CA certificate {args.ca_cert} is not present locally, and "
+                            f"retrieving it from the container failed: {err_msg}"
+                        )
+                    verify_ssl = str(temp_ca_file)
+                else:
+                    raise InitrdUpdateError(
+                        f"CA certificate file not found: {args.ca_cert}"
+                    )
+
         if args.insecure:
             urllib3.disable_warnings(InsecureRequestWarning)
 
@@ -1195,6 +1350,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     except InitrdUpdateError as exc:
         print(f"Error: {exc}")
         return 1
+    finally:
+        if temp_ca_file and temp_ca_file.exists():
+            try:
+                temp_ca_file.unlink()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
