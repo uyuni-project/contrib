@@ -299,6 +299,7 @@ def parse_arguments(args):
 # Example usage:
 if __name__ == '__main__':
     # Parse the arguments
+    global smt
     smt = smtools.SMTools("import_suma_data")
     smt.log_info("Start")
 

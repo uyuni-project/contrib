@@ -64,7 +64,7 @@ def group_update_server(args):
     else:
         smt.log_warning("The given systemgroup '{}' has no systems.".format(args.group))
 
-def main():
+def main() -> int:
     """
     Main function
     """
@@ -95,7 +95,8 @@ def main():
     smt.suman_login()
     group_update_server(args)
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

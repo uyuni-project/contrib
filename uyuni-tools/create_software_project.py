@@ -28,10 +28,12 @@
 #                        - changed logging
 #                        - moved api calls to smtools.py
 # 2025-06-06 M.Brookhuis - change in description to use sync_stage
-# 2025-06-19 M.Brookhuis - changed behavior of add and delete. They will display warning if more options are given
-# 2025-10-28 M.Brookhuis - added that channels are build/promoted after the environment is created
+# 2025-06-19 M.Brookhuis - changed behavior of adding and delete. They will display a warning if more options are given
+# 2025-10-28 M.Brookhuis - added that channels are built/promoted after the environment is created
 #                        - added option --nobuild to not perform a build or promote
-#                        - added option --activationkey to create activationkeys for each environment. Will not work with --no-build
+#                        - added option --activationkey to create activation keys for each environment. Will not work with --no-build
+# 2026-10-26 M.Brookhuis - fixed bug that added wrong channels to an activation key
+#
 
 """
 A script for managing content lifecycle software projects.
@@ -61,8 +63,8 @@ __smt = None
 
 def sync_completed(env, project, wait):
     """
-    check if the sync of the sync of the previous environment is completed (built) or done (unknown).
-    If status is building and wait is true,
+    check if the sync of the previous environment is completed (built) or done (unknown).
+    If status is building and the wait is true, continue with the next steps.
     """
     while True:
         project_details = smt.contentmanagement_listprojectenvironment(project)
@@ -135,12 +137,13 @@ def create_activation_key(project, env):
     child_channels = []
     key_name = f"{project}-{env}"
     key_id  = f"1-{project}-{env}"
-    for channel in project_channels:
-        details = smt.channel_software_getdetails(channel.get('channelLabel'))
+    for srv_channel in project_channels:
+        channel = f"{project}-{env}-{srv_channel.get('channelLabel')}"
+        details = smt.channel_software_getdetails(channel)
         if not details.get('parent_channel_label'):
-            parent_channel = channel.get('channelLabel')
+            parent_channel = channel
         else:
-            child_channels.append(channel.get('channelLabel'))
+            child_channels.append(channel)
     smt.activationkey_create_vh(key_name, key_name, parent_channel, False)
     smt.activationkey_add_child_channels(key_id, child_channels)
     smt.log_info("Activation key created")
@@ -270,6 +273,7 @@ def main():
     smt.suman_login()
     manage_project(args)
     smt.close_program()
+    return True
 
 if __name__ == "__main__":
-    main()
+    SystemExit(main())

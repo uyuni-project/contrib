@@ -443,7 +443,7 @@ def update_status(server, status, message):
         smt.log_error("No monitoring configured for system_update")
 
 
-def main():
+def main() -> int:
     """
     Main function
     """
@@ -487,6 +487,7 @@ def main():
         smt.log_debug(err)
         raise
     update_status(args.server, "finished", "update completed")
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -130,7 +130,7 @@ def start_update():
                 smt.log_error(f"Error updating {channel}")
                 smt.log_error(f"Error message: {result.stderr.decode('utf-8')}")
 
-def main():
+def main() -> int:
     """
     This script provides functionality to update bootstrap repositories. It initializes
     the necessary tools and settings, parses the script arguments, and controls the
@@ -153,7 +153,8 @@ def main():
     start_update()
     smt.log_info("Finished update_bootstrap_repo")
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

@@ -220,7 +220,7 @@ def check_arguments(args):
         sys.exit(1)
     smt.log_debug("Finished check_arguments")
 
-def main():
+def main() -> int:
     """
     Main section
     """
@@ -260,7 +260,8 @@ def main():
     start_sync(args)
     smt.log_info("Finished manage_group")
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

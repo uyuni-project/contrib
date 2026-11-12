@@ -131,7 +131,7 @@ def update_environment(project, args):
     else:
         return False
 
-def main():
+def main() -> int:
     """
     Main section
     """
@@ -162,7 +162,8 @@ def main():
         smt.log_debug("Given options: {}".format(args))
         smt.fatal_error("Options --project and --environment are not given. Aborting operation")
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())
