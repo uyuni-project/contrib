@@ -101,7 +101,7 @@ def update_environment(args):
         smt.minor_error("The given environment {} does not exist".format(args.environment))
 
 
-def main():
+def main() -> int:
     """
     Main section
     """
@@ -123,7 +123,8 @@ def main():
         smt.fatal_error("Option --environment is not given. Aborting operation")
 
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

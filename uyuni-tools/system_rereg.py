@@ -127,7 +127,7 @@ def rereg_server(args):
             smt.fatal_error("Given file {} doesn't exists. aborting".format(args.file))
 
 
-def main():
+def main() -> int:
     """
     Main function
     """
@@ -153,7 +153,8 @@ def main():
         smt.set_hostname(args.proxy)
     rereg_server(args)
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

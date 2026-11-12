@@ -29,4 +29,3 @@ If you are not doing it already, check out the [GitHub documentation](https://do
 # LICENSE
 
 The content of this repository is licensed under an [OSI-approved](https://opensource.org/licenses) open source license. Please see each directory's `LICENSE.txt` for its respective license.
-

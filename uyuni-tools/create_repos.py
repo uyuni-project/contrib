@@ -99,7 +99,7 @@ def do_repo_config(repo_config, sync):
         smt.log_info(" ")
 
 
-def main():
+def main() -> int:
     """
     Main Function
     """
@@ -129,7 +129,8 @@ def main():
     smt.suman_login()
     do_repo_config(repo_config, args.sync)
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

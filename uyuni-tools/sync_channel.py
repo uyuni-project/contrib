@@ -28,7 +28,7 @@ import smtools
 __smt = None
 
 
-def main():
+def main() -> int:
     """
     Main Function
     """
@@ -62,7 +62,8 @@ def main():
     smt.log_info('     Merging {} packages'.format(len(smt.channel_software_mergepackages(clone_label, channel))))
     smt.log_info("FINISHED")
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

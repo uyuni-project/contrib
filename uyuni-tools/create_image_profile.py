@@ -42,7 +42,7 @@ def create_image_profile(args):
     print(f"Image profile '{args.label}' created successfully with ID: {profile_id}")
     return True
 
-def main():
+def main() -> int:
     """
     Main function for creating image profiles.
     :return: 0 on success, 1 on failure.
@@ -80,6 +80,7 @@ def main():
         smt.close_program()
     else:
         smt.close_program(1)
+    return 0
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

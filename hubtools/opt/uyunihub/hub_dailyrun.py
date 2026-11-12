@@ -249,7 +249,7 @@ def get_slaves_systemgroup(session, client, systemgroup):
     return slaves
 
 
-def main():
+def main() -> int:
     client = xmlrpc.client.Server("http://{}/rpc/api".format(uyunihub['server']['hubmaster']))
     session_key = client.auth.login(uyunihub['server']['user'], uyunihub['server']['password'])
     if len(sys.argv) == 1:
@@ -265,7 +265,8 @@ def main():
     config_channels = get_config_channels(session_key, client)
     write_form_yml(clm_projects, base_channels, slaves, config_channels)
     client.auth.logout(session_key)
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

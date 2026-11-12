@@ -169,7 +169,7 @@ def get_cve_data(args):
     return cve_data_collected
 
 
-def main():
+def main() -> int:
     """
     Main function.
     """
@@ -196,7 +196,8 @@ def main():
         smt.close_program()
     else:
         parser.print_help()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())
