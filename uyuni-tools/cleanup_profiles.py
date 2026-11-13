@@ -70,7 +70,7 @@ def start_cleanup_profiles():
                 smt.kickstart_deleteprofile(profile)
     return
 
-def main():
+def main() -> int:
     """
     Main function to handle execution of the cleanup profiles process.
 
@@ -94,6 +94,7 @@ def main():
     else:
         smt.close_program(1)
         smt.log_error("Finished with errors")
+    return 0
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

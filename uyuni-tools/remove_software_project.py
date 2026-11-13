@@ -189,7 +189,7 @@ def manage_project(args):
         return False
     return True
 
-def main():
+def main() -> int:
     """
     Main function
     """
@@ -219,6 +219,7 @@ def main():
     else:
         smt.close_program(1)
         smt.log_error("Finished with errors")
+    return 0
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

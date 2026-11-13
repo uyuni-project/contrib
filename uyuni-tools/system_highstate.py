@@ -27,7 +27,7 @@ import smtools
 
 
 
-def main():
+def main() -> int:
     """
     Main function
     """
@@ -54,6 +54,7 @@ def main():
         smt.log_error("general error:")
         smt.log_error(err)
         raise
+    return 0
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

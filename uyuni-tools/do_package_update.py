@@ -121,7 +121,7 @@ def apply_updates_regular(sd):
     return actionid
 
 
-def main():
+def main() -> int:
     """
     Main function
     """
@@ -148,7 +148,8 @@ def main():
     smt.log_info("######################################################")
     do_package_update(smt.get_server_id())
     smt.close_program()
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())
