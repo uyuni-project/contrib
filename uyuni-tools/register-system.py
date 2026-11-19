@@ -34,7 +34,7 @@ def perform_bootstrap(server, akey):
      smt.log_info("server {} registered".format(server))
 
 
-def main():
+def main() -> int:
      """
      Main Function
      """
@@ -65,8 +65,9 @@ def main():
          smt.log_info("Start")
          perform_bootstrap(args.server, args.activationkey)
      smt.close_program()
+     return 0
 
 
 if __name__ == "__main__":
-     SystemExit(main())
+     raise SystemExit(main())
 

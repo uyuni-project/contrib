@@ -34,7 +34,7 @@ def schedule_image_build(profile_label, version, build_host_id, earliest_occurre
             earliest_occurrence_dt = datetime.datetime.strptime(earliest_occurrence, "%Y-%m-%dT%H:%M:%S.%f")
     smt.image_schedule_image_build(profile_label, version, build_host_id, earliest_occurrence_dt)
 
-def main():
+def main() -> int:
     """
     Main function
     :return:
@@ -78,6 +78,7 @@ def main():
 
     schedule_image_build(args.profile_label, args.image_version, resolved_build_host_id, EARLIEST_OCCURRENCE)
     smt.close_program()
+    return 0
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

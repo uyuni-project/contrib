@@ -211,7 +211,7 @@ def create_configchannel(m_channel, m_client, m_session, s_client, s_session):
                 log.warning("Error:\n{}".format(err))
 
 
-def main():
+def main() -> int:
     log.info("start")
     if len(sys.argv) != 1:
         log.fatal("Usage: register_master.py")
@@ -247,7 +247,8 @@ def main():
         sys.exit(1)
     sync_config(m_client, m_session, s_client, s_session, hub_slave)
     log.info("finished")
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())

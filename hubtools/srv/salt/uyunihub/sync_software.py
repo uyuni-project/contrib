@@ -133,7 +133,7 @@ def get_needed_base_channels(hub_slave, m_client, m_session):
     return needed
 
 
-def main():
+def main() -> int:
     if len(sys.argv) != 1:
         print("Usage: register_master.py")
         log.error("Usage: register_master.py")
@@ -171,7 +171,8 @@ def main():
     needed_base_channels = get_needed_base_channels(hub_slave, m_client, m_session)
     sync_channels(needed_base_channels, m_client, m_session, s_client, s_session)
     log.info("finished")
+    return 0
 
 
 if __name__ == "__main__":
-    SystemExit(main())
+    raise SystemExit(main())
