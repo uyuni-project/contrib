@@ -1,0 +1,148 @@
+name: Check Line Endings
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-crlf:
+    name: Reject Windows Line Endings (CRLF)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR diff for CRLF
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const MARKER = '<!-- check-line-endings -->';
+            // GitHub's "list pull request files" endpoint returns at most 3000 files
+            const MAX_LISTED_FILES = 3000;
+
+            // Filenames come from the PR author: neutralise characters that could
+            // break out of a markdown code span or inject extra lines
+            const sanitize = name => name.replace(/[\u0000-\u001f\u007f`]/g, '?');
+            const toList = names => names.map(f => `- \`${sanitize(f)}\``).join('\n');
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 100
+            });
+
+            const failedFiles = [];
+            const uninspectableFiles = [];
+
+            for (const file of files) {
+              // Deleted files have no added lines to inspect
+              if (file.status === 'removed') continue;
+
+              if (!file.patch) {
+                // No content changes (pure renames, mode changes, binary files):
+                // nothing to inspect
+                if (file.changes === 0) continue;
+                // Content changed but GitHub omitted the patch (diff too large)
+                uninspectableFiles.push(file.filename);
+                continue;
+              }
+
+              // Walk the patch, tracking line numbers in the new file so the
+              // annotations point at the offending lines
+              const crlfLines = [];
+              let newLine = 0;
+              for (const line of file.patch.split('\n')) {
+                const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+                if (hunk) {
+                  newLine = parseInt(hunk[1], 10);
+                } else if (line.startsWith('+')) {
+                  if (line.includes('\r')) crlfLines.push(newLine);
+                  newLine++;
+                } else if (line.startsWith(' ')) {
+                  newLine++;
+                }
+                // '-' lines and '\ No newline at end of file' do not advance
+              }
+
+              if (crlfLines.length > 0) {
+                failedFiles.push(file.filename);
+                for (const startLine of crlfLines) {
+                  core.error(
+                    'Line contains a carriage return (Windows CRLF line ending). Please convert to Unix (LF).',
+                    { file: file.filename, startLine }
+                  );
+                }
+              }
+            }
+
+            const truncated = files.length >= MAX_LISTED_FILES;
+
+            const sections = [];
+            if (failedFiles.length > 0) {
+              sections.push(
+                `The following files introduce \`CRLF\` line endings:\n${toList(failedFiles)}\n\n` +
+                'Please convert them to `LF` (Unix) line endings and push again.'
+              );
+            }
+            if (uninspectableFiles.length > 0) {
+              sections.push(
+                `Line endings could not be inspected for the following file(s) because GitHub does not provide their diff (too large):\n${toList(uninspectableFiles)}`
+              );
+            }
+            if (truncated) {
+              sections.push(
+                `This PR changes ${MAX_LISTED_FILES} or more files; GitHub only lists the first ${MAX_LISTED_FILES}, so the rest could not be inspected. Please split the PR.`
+              );
+            }
+            const failed = sections.length > 0;
+
+            // Keep a single bot comment per PR, updated on every run.
+            // On fork PRs the token is read-only, so commenting may fail: the
+            // check result must not depend on it.
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                per_page: 100
+              });
+              const existing = comments.find(c =>
+                c.user?.type === 'Bot' && c.body?.includes(MARKER)
+              );
+
+              let body = null;
+              if (failed) {
+                body = `${MARKER}\n❌ **Line Endings Check Failed**\n\n${sections.join('\n\n')}`;
+              } else if (existing) {
+                body = `${MARKER}\n✅ **Line Endings Check Passed**\n\nNo \`CRLF\` line endings found anymore.`;
+              }
+
+              if (body && existing) {
+                if (existing.body !== body) {
+                  await github.rest.issues.updateComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    comment_id: existing.id,
+                    body
+                  });
+                }
+              } else if (body) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: context.issue.number,
+                  body
+                });
+              }
+            } catch (err) {
+              core.warning(`Could not create or update the PR comment (expected for PRs from forks): ${err.message}`);
+            }
+
+            if (failed) {
+              core.setFailed(sections.join('\n\n'));
+            } else {
+              core.info('✅ No CRLF line endings found in added lines.');
+            }
