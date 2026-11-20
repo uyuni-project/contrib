@@ -1,0 +1,17 @@
+# Normalise line endings: Git auto-detects text files, stores them with LF
+# and checks them out with LF on every platform (including Windows).
+* text=auto eol=lf
+
+# Never touch line endings of binary files
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.gz   binary
+*.tgz  binary
+*.bz2  binary
+*.xz   binary
+*.zip  binary
+*.rpm  binary
